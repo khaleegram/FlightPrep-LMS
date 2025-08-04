@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import {
   Home,
   FileText,
@@ -23,14 +24,15 @@ import { useAuth } from '@/hooks/use-auth';
 
 export default function StudentLayout({ children }: { children: ReactNode }) {
     const { user } = useAuth();
+    const pathname = usePathname();
 
     const navItems = [
-        { href: "/student/dashboard", icon: Home, label: "Dashboard", active: true },
+        { href: "/student/dashboard", icon: Home, label: "Dashboard" },
         { href: "#", icon: FileText, label: "Mock Exams" },
         { href: "#", icon: LineChart, label: "My Progress" },
         { href: "#", icon: MessageSquare, label: "AI Tutor" },
         { href: "#", icon: Trophy, label: "Leaderboard" },
-        { href: "#", icon: Settings, label: "Settings" },
+        { href: "/student/settings", icon: Settings, label: "Settings" },
     ];
 
     const NavContent = () => (
@@ -40,7 +42,7 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
               key={item.label}
               href={item.href}
               className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-all ${
-                item.active
+                pathname === item.href
                   ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                   : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
               }`}
