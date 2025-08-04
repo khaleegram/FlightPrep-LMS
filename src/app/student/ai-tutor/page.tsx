@@ -6,7 +6,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { SendHorizonal } from "lucide-react"
+import { SendHorizonal, LoaderCircle } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
+import { generateTutorResponse } from "@/ai/flows/generate-tutor-response"
 
 type Message = {
   id: string
@@ -20,28 +22,37 @@ export default function AiTutorPage() {
       id: "1",
       text: "Hello! I am your AI-powered aviation tutor. How can I help you prepare for your exams today?",
       sender: "ai",
-    },
-    {
-      id: "2",
-      text: "Can you explain the difference between True Airspeed (TAS) and Indicated Airspeed (IAS)?",
-      sender: "user",
-    },
-    {
-        id: "3",
-        text: "Of course. **Indicated Airspeed (IAS)** is the speed shown on the aircraft's airspeed indicator. It's read directly from the instrument and is not corrected for errors. \n\n**True Airspeed (TAS)** is the actual speed of the aircraft through the air. It's calculated by correcting IAS for non-standard pressure and temperature. As you climb in altitude, the air density decreases, and the difference between IAS and TAS becomes greater.",
-        sender: "ai"
     }
   ])
   const [input, setInput] = useState("")
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!input.trim()) return
-    // In the next step, we'll replace this with a call to our AI flow
-    console.log("Sending message:", input)
-    // Add user message to the chat
-    setMessages([...messages, { id: Date.now().toString(), text: input, sender: "user" }])
-    setInput("")
+    if (!input.trim() || isLoading) return
+    
+    const userMessage: Message = { id: Date.now().toString(), text: input, sender: "user" };
+    setMessages(prev => [...prev, userMessage]);
+    setInput("");
+    setIsLoading(true);
+
+    try {
+      const result = await generateTutorResponse({ question: input });
+      const aiMessage: Message = { id: (Date.now() + 1).toString(), text: result.response, sender: "ai" };
+      setMessages(prev => [...prev, aiMessage]);
+    } catch (error) {
+      console.error("AI Tutor Error:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "There was an error communicating with the AI Tutor. Please try again.",
+      });
+      // Optional: remove the user message if the AI fails
+      setMessages(prev => prev.filter(msg => msg.id !== userMessage.id));
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   return (
@@ -82,6 +93,19 @@ export default function AiTutorPage() {
                     )}
                     </div>
                 ))}
+                 {isLoading && (
+                    <div className="flex items-start gap-4">
+                      <Avatar className="h-9 w-9 border-2 border-primary">
+                        <AvatarFallback>AI</AvatarFallback>
+                      </Avatar>
+                      <div className="max-w-prose rounded-lg p-3 bg-muted">
+                        <div className="flex items-center gap-2">
+                           <LoaderCircle className="h-5 w-5 animate-spin" />
+                           <p className="text-sm text-muted-foreground">Thinking...</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
             </ScrollArea>
             <div className="p-4 border-t">
@@ -91,9 +115,10 @@ export default function AiTutorPage() {
                     onChange={(e) => setInput(e.target.value)}
                     placeholder="Ask a question about any aviation topic..."
                     className="flex-1"
+                    disabled={isLoading}
                 />
-                <Button type="submit" size="icon">
-                    <SendHorizonal className="h-5 w-5" />
+                <Button type="submit" size="icon" disabled={isLoading}>
+                    {isLoading ? <LoaderCircle className="h-5 w-5 animate-spin" /> : <SendHorizonal className="h-5 w-5" />}
                     <span className="sr-only">Send Message</span>
                 </Button>
                 </form>
