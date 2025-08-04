@@ -8,41 +8,51 @@ import { useRouter, usePathname } from 'next/navigation';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  isAdmin: boolean;
 }
 
-const AuthContext = createContext<AuthContextType>({ user: null, loading: true });
+const AuthContext = createContext<AuthContextType>({ user: null, loading: true, isAdmin: false });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      setLoading(false);
-      
-      const isAuthPage = pathname === '/' || pathname === '/signup';
-
-      if (user && isAuthPage) {
-        // This is a simple logic. In a real app, you'd check user roles.
-        // For now, we'll assume any logged in user can be an admin or student
-        // and let them choose via the login page buttons. The signup will
-        // always redirect to the student dashboard.
-        if (pathname === '/signup' || pathname === '/') {
-            router.push('/student/dashboard');
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const idTokenResult = await user.getIdTokenResult();
+        const userIsAdmin = !!idTokenResult.claims.isAdmin;
+        setUser(user);
+        setIsAdmin(userIsAdmin);
+        
+        const isAuthPage = pathname === '/' || pathname === '/signup' || pathname === '/flightprepsignup';
+        
+        if (isAuthPage) {
+          router.push(userIsAdmin ? '/admin/dashboard' : '/student/dashboard');
+        } else if (pathname.startsWith('/admin') && !userIsAdmin) {
+          // If a non-admin tries to access an admin page, redirect them
+          router.push('/student/dashboard');
         }
-      } else if (!user && !isAuthPage) {
-        router.push('/');
+
+      } else {
+        setUser(null);
+        setIsAdmin(false);
+        const isProtectedRoute = !['/', '/signup', '/flightprepsignup'].includes(pathname);
+        if (isProtectedRoute) {
+          router.push('/');
+        }
       }
+      setLoading(false);
     });
 
     return () => unsubscribe();
   }, [router, pathname]);
 
   return (
-    <AuthContext.Provider value={{ user, loading }}>
+    <AuthContext.Provider value={{ user, loading, isAdmin }}>
       {loading ? <div className="flex h-screen items-center justify-center">Loading...</div> : children}
     </AuthContext.Provider>
   );
@@ -51,3 +61,5 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 export const useAuth = () => {
   return useContext(AuthContext);
 };
+
+    

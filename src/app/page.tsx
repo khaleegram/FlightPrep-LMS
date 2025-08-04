@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
+import { signInWithEmailAndPassword, signInWithPopup, User } from 'firebase/auth';
 import { auth, googleProvider, appleProvider } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -63,15 +63,30 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
 
+  const handleAdminLogin = async (user: User) => {
+    const idTokenResult = await user.getIdTokenResult(true); // Force refresh
+    if (idTokenResult.claims.isAdmin) {
+      toast({ title: 'Success', description: 'Admin logged in successfully!' });
+      router.push('/admin/dashboard');
+    } else {
+      await auth.signOut(); // Sign out non-admin user
+      toast({
+        variant: 'destructive',
+        title: 'Access Denied',
+        description: 'You do not have permission to access the admin panel.',
+      });
+    }
+  }
+
   const handleLogin = async (e: React.FormEvent, role: 'student' | 'admin') => {
     e.preventDefault();
     setIsLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      toast({ title: 'Success', description: 'Logged in successfully!' });
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
       if (role === 'admin') {
-        router.push('/admin/dashboard');
+        await handleAdminLogin(userCredential.user);
       } else {
+        toast({ title: 'Success', description: 'Logged in successfully!' });
         router.push('/student/dashboard');
       }
     } catch (error: any) {
@@ -85,13 +100,17 @@ export default function LoginPage() {
     }
   };
 
-  const handleProviderSignIn = async (provider: 'google' | 'apple') => {
+  const handleProviderSignIn = async (provider: 'google' | 'apple', role: 'student' | 'admin') => {
     setIsLoading(true);
     const authProvider = provider === 'google' ? googleProvider : appleProvider;
     try {
-        await signInWithPopup(auth, authProvider);
-        toast({ title: 'Success', description: 'Logged in successfully!' });
-        router.push('/student/dashboard');
+        const userCredential = await signInWithPopup(auth, authProvider);
+        if (role === 'admin') {
+          await handleAdminLogin(userCredential.user);
+        } else {
+          toast({ title: 'Success', description: 'Logged in successfully!' });
+          router.push('/student/dashboard');
+        }
     } catch (error: any) {
         toast({
             variant: 'destructive',
@@ -172,11 +191,11 @@ export default function LoginPage() {
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <Button variant="outline" className="w-full" onClick={() => handleProviderSignIn('google')} disabled={isLoading}>
+                    <Button variant="outline" className="w-full" onClick={() => handleProviderSignIn('google', 'student')} disabled={isLoading}>
                         <GoogleIcon className="mr-2 h-4 w-4" />
                         Google
                     </Button>
-                    <Button variant="outline" className="w-full" onClick={() => handleProviderSignIn('apple')} disabled={isLoading}>
+                    <Button variant="outline" className="w-full" onClick={() => handleProviderSignIn('apple', 'student')} disabled={isLoading}>
                         <AppleIcon className="mr-2 h-4 w-4" />
                         Apple
                     </Button>
@@ -225,6 +244,26 @@ export default function LoginPage() {
                       </div>
                     </div>
                   </form>
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-card px-2 text-muted-foreground">
+                        Or continue with
+                        </span>
+                    </div>
+                  </div>
+                   <div className="grid grid-cols-2 gap-2">
+                    <Button variant="outline" className="w-full" onClick={() => handleProviderSignIn('google', 'admin')} disabled={isLoading}>
+                        <GoogleIcon className="mr-2 h-4 w-4" />
+                        Google
+                    </Button>
+                    <Button variant="outline" className="w-full" onClick={() => handleProviderSignIn('apple', 'admin')} disabled={isLoading}>
+                        <AppleIcon className="mr-2 h-4 w-4" />
+                        Apple
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -245,3 +284,5 @@ export default function LoginPage() {
     </div>
   );
 }
+
+    
