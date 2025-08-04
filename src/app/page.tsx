@@ -12,6 +12,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import Logo from '@/components/logo';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
     return (
@@ -112,79 +113,122 @@ export default function LoginPage() {
               Enter your credentials to access your account
             </p>
           </div>
-          <Card>
-            <CardContent className="grid gap-4 pt-6">
-              <form>
-                <div className="grid gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="m@example.com"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      disabled={isLoading}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <div className="flex items-center">
-                      <Label htmlFor="password">Password</Label>
-                      <Link
-                        href="#"
-                        className="ml-auto inline-block text-sm underline"
-                      >
-                        Forgot your password?
-                      </Link>
+          <Tabs defaultValue="student" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="student">Student</TabsTrigger>
+              <TabsTrigger value="admin">Admin</TabsTrigger>
+            </TabsList>
+            <TabsContent value="student">
+              <Card>
+                <CardContent className="grid gap-4 pt-6">
+                  <form onSubmit={(e) => handleLogin(e, 'student')}>
+                    <div className="grid gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="email-student">Email</Label>
+                        <Input
+                          id="email-student"
+                          type="email"
+                          placeholder="m@example.com"
+                          required
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          disabled={isLoading}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <div className="flex items-center">
+                          <Label htmlFor="password-student">Password</Label>
+                          <Link
+                            href="#"
+                            className="ml-auto inline-block text-sm underline"
+                          >
+                            Forgot your password?
+                          </Link>
+                        </div>
+                        <Input 
+                          id="password-student" 
+                          type="password" 
+                          required 
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          disabled={isLoading}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Button type="submit" className="w-full" disabled={isLoading}>
+                          {isLoading ? 'Logging in...' : 'Student Login'}
+                        </Button>
+                      </div>
                     </div>
-                    <Input 
-                      id="password" 
-                      type="password" 
-                      required 
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      disabled={isLoading}
-                    />
+                  </form>
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-card px-2 text-muted-foreground">
+                        Or continue with
+                        </span>
+                    </div>
                   </div>
-                  <div className="grid gap-2">
-                    <Button type="submit" className="w-full" onClick={(e) => handleLogin(e, 'student')} disabled={isLoading}>
-                      {isLoading ? 'Logging in...' : 'Student Login'}
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button variant="outline" className="w-full" onClick={() => handleProviderSignIn('google')} disabled={isLoading}>
+                        <GoogleIcon className="mr-2 h-4 w-4" />
+                        Google
                     </Button>
-                    <Button variant="outline" className="w-full" onClick={(e) => handleLogin(e, 'admin')} disabled={isLoading}>
-                      {isLoading ? 'Logging in...' : 'Admin Login'}
+                    <Button variant="outline" className="w-full" onClick={() => handleProviderSignIn('apple')} disabled={isLoading}>
+                        <AppleIcon className="mr-2 h-4 w-4" />
+                        Apple
                     </Button>
                   </div>
-                </div>
-              </form>
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-card px-2 text-muted-foreground">
-                    Or continue with
-                    </span>
-                </div>
+                </CardContent>
+              </Card>
+              <div className="mt-4 text-center text-sm">
+                Don&apos;t have an account?{' '}
+                <Link href="/signup" className="underline">
+                  Sign up
+                </Link>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" className="w-full" onClick={() => handleProviderSignIn('google')} disabled={isLoading}>
-                    <GoogleIcon className="mr-2 h-4 w-4" />
-                    Google
-                </Button>
-                <Button variant="outline" className="w-full" onClick={() => handleProviderSignIn('apple')} disabled={isLoading}>
-                    <AppleIcon className="mr-2 h-4 w-4" />
-                    Apple
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-          <div className="mt-4 text-center text-sm">
-            Don&apos;t have an account?{' '}
-            <Link href="/signup" className="underline">
-              Sign up
-            </Link>
-          </div>
+            </TabsContent>
+            <TabsContent value="admin">
+              <Card>
+                <CardContent className="grid gap-4 pt-6">
+                  <form onSubmit={(e) => handleLogin(e, 'admin')}>
+                    <div className="grid gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="email-admin">Email</Label>
+                        <Input
+                          id="email-admin"
+                          type="email"
+                          placeholder="admin@example.com"
+                          required
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          disabled={isLoading}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                          <Label htmlFor="password-admin">Password</Label>
+                        <Input 
+                          id="password-admin" 
+                          type="password" 
+                          required 
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          disabled={isLoading}
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Button type="submit" className="w-full" disabled={isLoading}>
+                          {isLoading ? 'Logging in...' : 'Admin Login'}
+                        </Button>
+                      </div>
+                    </div>
+                  </form>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
       <div className="hidden bg-muted lg:block xl:col-span-3">
