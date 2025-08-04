@@ -10,11 +10,12 @@ import {
 import { ProgressChart } from "@/components/progress-chart"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import Link from "next/link"
 
 const exams = [
-    { title: "PPL Air Law Mock Exam", questions: 50, duration: "60 mins", subject: "Air Law" },
-    { title: "CPL Meteorology Practice Test", questions: 40, duration: "45 mins", subject: "Meteorology" },
-    { title: "EASA Part-66 Module 1", questions: 100, duration: "120 mins", subject: "Mathematics" },
+    { id: "1", title: "PPL Air Law Mock Exam", questions: 50, duration: "60 mins", subject: "Air Law" },
+    { id: "2", title: "CPL Meteorology Practice Test", questions: 40, duration: "45 mins", subject: "Meteorology" },
+    { id: "3", title: "EASA Part-66 Module 1", questions: 100, duration: "120 mins", subject: "Mathematics" },
 ];
 
 const leaderboard = [
@@ -74,7 +75,9 @@ export default function StudentDashboard() {
                             <p className="text-sm text-muted-foreground">{exam.duration}</p>
                         </CardContent>
                         <CardFooter>
-                            <Button className="w-full bg-accent hover:bg-accent/90">Start Exam</Button>
+                            <Button asChild className="w-full bg-accent hover:bg-accent/90">
+                                <Link href={`/student/mock-exams/${exam.id}`}>Start Exam</Link>
+                            </Button>
                         </CardFooter>
                     </Card>
                 ))}

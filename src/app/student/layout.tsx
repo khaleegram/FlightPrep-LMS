@@ -28,7 +28,7 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
 
     const navItems = [
         { href: "/student/dashboard", icon: Home, label: "Dashboard" },
-        { href: "#", icon: FileText, label: "Mock Exams" },
+        { href: "/student/mock-exams", icon: FileText, label: "Mock Exams" },
         { href: "/student/my-progress", icon: LineChart, label: "My Progress" },
         { href: "/student/ai-tutor", icon: MessageSquare, label: "AI Tutor" },
         { href: "/student/leaderboard", icon: Trophy, label: "Leaderboard" },
@@ -42,7 +42,7 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
               key={item.label}
               href={item.href}
               className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-all ${
-                pathname === item.href
+                pathname.startsWith(item.href) && item.href !== '/'
                   ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                   : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
               }`}
