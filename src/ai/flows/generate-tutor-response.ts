@@ -13,8 +13,7 @@ import {z} from 'genkit';
 
 const GenerateTutorResponseInputSchema = z.object({
   question: z.string().describe('The student\'s question for the AI tutor.'),
-  // Optional: Add chat history for more context in the future
-  // history: z.array(z.object({text: z.string(), role: z.enum(['user', 'model'])})).optional(),
+  history: z.array(z.object({text: z.string(), role: z.enum(['user', 'model'])})).optional().describe('The history of the conversation.'),
 });
 export type GenerateTutorResponseInput = z.infer<typeof GenerateTutorResponseInputSchema>;
 
@@ -33,10 +32,18 @@ const prompt = ai.definePrompt({
   output: {schema: GenerateTutorResponseOutputSchema},
   prompt: `You are an expert AI tutor for an aviation college named FlightPrep LMS™. Your primary role is to help students understand complex aviation topics in a clear, concise, and encouraging manner.
 
+{{#if history}}
+This is the conversation history so far:
+{{#each history}}
+  {{#if (eq role 'user')}}Student: {{text}}{{/if}}
+  {{#if (eq role 'model')}}AI Tutor: {{text}}{{/if}}
+{{/each}}
+{{/if}}
+
 A student has asked the following question:
 "{{{question}}}"
 
-Please provide a helpful and accurate response. If the question is outside the scope of aviation, politely decline to answer and steer the conversation back to aviation topics.
+Please provide a helpful and accurate response based on the question and the conversation history. If the question is outside the scope of aviation, politely decline to answer and steer the conversation back to aviation topics.
 `,
 });
 

@@ -1,8 +1,8 @@
 
 "use client"
 
-import { useState } from "react"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useState, useEffect, useRef } from "react"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -16,31 +16,71 @@ type Message = {
   sender: "user" | "ai"
 }
 
+// Convert message format for the Genkit flow
+const toFlowMessage = (msg: Message) => ({
+    text: msg.text,
+    role: msg.sender === 'user' ? 'user' : 'model' as 'user' | 'model'
+});
+
+
 export default function AiTutorPage() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      text: "Hello! I am your AI-powered aviation tutor. How can I help you prepare for your exams today?",
-      sender: "ai",
-    }
-  ])
+  const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  
+  // Load messages from localStorage on initial render
+  useEffect(() => {
+    const storedMessages = localStorage.getItem("chatHistory");
+    if (storedMessages) {
+      setMessages(JSON.parse(storedMessages));
+    } else {
+        setMessages([
+            {
+              id: "1",
+              text: "Hello! I am your AI-powered aviation tutor. How can I help you prepare for your exams today?",
+              sender: "ai",
+            }
+          ]);
+    }
+  }, []);
+
+  // Save messages to localStorage whenever they change
+  useEffect(() => {
+    if (messages.length > 0) {
+        localStorage.setItem("chatHistory", JSON.stringify(messages));
+    }
+  }, [messages]);
+
+  // Scroll to bottom when messages update
+  useEffect(() => {
+    if (scrollAreaRef.current) {
+        const viewport = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+        if (viewport) {
+            viewport.scrollTop = viewport.scrollHeight;
+        }
+    }
+  }, [messages, isLoading]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!input.trim() || isLoading) return
     
     const userMessage: Message = { id: Date.now().toString(), text: input, sender: "user" };
-    setMessages(prev => [...prev, userMessage]);
+    const newMessages = [...messages, userMessage];
+    setMessages(newMessages);
     setInput("");
     setIsLoading(true);
 
     try {
-      const result = await generateTutorResponse({ question: input });
-      const aiMessage: Message = { id: (Date.now() + 1).toString(), text: result.response, sender: "ai" };
-      setMessages(prev => [...prev, aiMessage]);
+        // Pass the last 10 messages for context
+        const history = newMessages.slice(-11, -1).map(toFlowMessage);
+        
+        const result = await generateTutorResponse({ question: input, history });
+
+        const aiMessage: Message = { id: (Date.now() + 1).toString(), text: result.response, sender: "ai" };
+        setMessages(prev => [...prev, aiMessage]);
     } catch (error) {
       console.error("AI Tutor Error:", error);
       toast({
@@ -63,7 +103,7 @@ export default function AiTutorPage() {
         </header>
 
         <div className="flex-1 flex flex-col bg-card border rounded-lg shadow-sm">
-            <ScrollArea className="flex-1 p-4">
+            <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
                 <div className="space-y-6">
                 {messages.map((message) => (
                     <div
