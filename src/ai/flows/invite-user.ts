@@ -10,6 +10,14 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import { initializeApp, getApps } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
+
+// Initialize Firebase Admin SDK if not already initialized
+if (!getApps().length) {
+  initializeApp();
+}
+
 
 const InviteUserInputSchema = z.object({
   email: z.string().email().describe("The new user's email address."),
@@ -23,11 +31,6 @@ const InviteUserOutputSchema = z.object({
 });
 export type InviteUserOutput = z.infer<typeof InviteUserOutputSchema>;
 
-// IMPORTANT: In a real production application, you would add authentication
-// checks here to ensure that only authorized administrators can call this function.
-// This would typically involve using the Firebase Admin SDK to verify the
-// caller's ID token and check for an `isAdmin` custom claim.
-
 export async function inviteUser(input: InviteUserInput): Promise<InviteUserOutput> {
   return inviteUserFlow(input);
 }
@@ -39,20 +42,49 @@ const inviteUserFlow = ai.defineFlow(
     outputSchema: InviteUserOutputSchema,
   },
   async (input) => {
-    // In a real application, this is where you would use the Firebase Admin SDK to:
-    // 1. Create a new user with the provided email.
-    // 2. Set a custom claim on that user object to assign their role.
-    //    e.g., `admin.auth().setCustomUserClaims(user.uid, { [input.role.toLowerCase()]: true })`
-    // For now, we simulate this and return a success message.
+    try {
+      // 1. Create a new user with the provided email.
+      // A temporary password is required, but the user will likely reset it
+      // or sign in with a provider. You could also implement a passwordless email link.
+      const userRecord = await getAuth().createUser({
+        email: input.email,
+        password: `temp-password-${Date.now()}`, // A random temporary password
+        emailVerified: false, // User will need to verify their email
+        disabled: false,
+      });
 
-    console.log(`Simulating invitation for ${input.email} with role ${input.role}`);
+      // 2. Set a custom claim on that user object to assign their role.
+      const claims: Record<string, boolean> = {};
+      if (input.role === 'Admin') {
+        claims.isAdmin = true;
+      } else {
+        claims.isStudent = true;
+      }
+      
+      await getAuth().setCustomUserClaims(userRecord.uid, claims);
 
-    // Simulate a delay to make it feel like a real network request.
-    await new Promise(resolve => setTimeout(resolve, 1000));
+      // In a real app, you would also trigger an email to be sent to the user.
+      // This can be done via another service or a Firebase Extension.
+      console.log(`User ${input.email} created with UID ${userRecord.uid} and role ${input.role}`);
 
-    return {
-      success: true,
-      message: `User ${input.email} invited successfully as a ${input.role}.`,
-    };
+      return {
+        success: true,
+        message: `User ${input.email} invited successfully as a ${input.role}.`,
+      };
+    } catch (error: any) {
+        console.error("Error inviting user:", error);
+
+        let errorMessage = "An unknown error occurred.";
+        if (error.code === 'auth/email-already-exists') {
+            errorMessage = "This email address is already in use by another account.";
+        } else if (error.message) {
+            errorMessage = error.message;
+        }
+
+        return {
+            success: false,
+            message: errorMessage,
+        };
+    }
   }
 );
