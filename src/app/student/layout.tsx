@@ -29,7 +29,7 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
     const navItems = [
         { href: "/student/dashboard", icon: Home, label: "Dashboard" },
         { href: "#", icon: FileText, label: "Mock Exams" },
-        { href: "#", icon: LineChart, label: "My Progress" },
+        { href: "/student/my-progress", icon: LineChart, label: "My Progress" },
         { href: "/student/ai-tutor", icon: MessageSquare, label: "AI Tutor" },
         { href: "/student/leaderboard", icon: Trophy, label: "Leaderboard" },
         { href: "/student/settings", icon: Settings, label: "Settings" },
