@@ -1,3 +1,5 @@
+"use client"
+
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import {
@@ -17,8 +19,11 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import UserNav from '@/components/user-nav';
+import { useAuth } from '@/hooks/use-auth';
 
 export default function StudentLayout({ children }: { children: ReactNode }) {
+    const { user } = useAuth();
+
     const navItems = [
         { href: "/student/dashboard", icon: Home, label: "Dashboard", active: true },
         { href: "#", icon: FileText, label: "Mock Exams" },
@@ -46,6 +51,8 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
           ))}
         </nav>
       );
+
+  if (!user) return null; // Or a loading indicator
 
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr] bg-muted/20">

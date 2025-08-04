@@ -1,3 +1,5 @@
+"use client"
+
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import {
@@ -24,9 +26,11 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import UserNav from '@/components/user-nav';
-import Logo from '@/components/logo';
+import { useAuth } from '@/hooks/use-auth';
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  
   const navItems = [
     { href: "/admin/dashboard", icon: Home, label: "Dashboard", active: true },
     { href: "#", icon: BookCopy, label: "Question Bank" },
@@ -55,6 +59,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       ))}
     </nav>
   );
+
+  if (!user) return null; // Or a loading indicator
 
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr] bg-muted/20">
