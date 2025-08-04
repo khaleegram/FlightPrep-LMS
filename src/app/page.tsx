@@ -4,14 +4,41 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
+import { auth, googleProvider } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import Logo from '@/components/logo';
+
+function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
+    return (
+      <svg
+        {...props}
+        xmlns="http://www.w3.org/2000/svg"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M12 22c5.52 0 10-4.48 10-10S17.52 2 12 2 2 6.48 2 12s4.48 10 10 10z" />
+        <path d="M12 2v10" />
+        <path d="m4.93 4.93 7.07 7.07" />
+        <path d="m2 12h10" />
+        <path d="m4.93 19.07 7.07-7.07" />
+        <path d="M12 22v-10" />
+        <path d="m19.07 19.07-7.07-7.07" />
+        <path d="M22 12h-10" />
+        <path d="m19.07 4.93-7.07 7.07" />
+      </svg>
+    )
+  }
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -41,6 +68,23 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   };
+
+  const handleGoogleSignIn = async () => {
+    setIsLoading(true);
+    try {
+        await signInWithPopup(auth, googleProvider);
+        toast({ title: 'Success', description: 'Logged in successfully!' });
+        router.push('/student/dashboard');
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Login Failed',
+            description: error.message,
+        });
+    } finally {
+        setIsLoading(false);
+    }
+  }
 
   return (
     <div className="w-full lg:grid lg:min-h-screen lg:grid-cols-2 xl:grid-cols-5">
@@ -97,6 +141,20 @@ export default function LoginPage() {
                   </div>
                 </div>
               </form>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-card px-2 text-muted-foreground">
+                    Or continue with
+                    </span>
+                </div>
+              </div>
+              <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isLoading}>
+                  <GoogleIcon className="mr-2 h-4 w-4" />
+                  Sign in with Google
+              </Button>
             </CardContent>
           </Card>
           <div className="mt-4 text-center text-sm">
