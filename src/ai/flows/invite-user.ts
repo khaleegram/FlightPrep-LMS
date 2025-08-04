@@ -11,7 +11,7 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-export const InviteUserInputSchema = z.object({
+const InviteUserInputSchema = z.object({
   email: z.string().email().describe("The new user's email address."),
   role: z.enum(['Admin', 'Student']).describe("The role to assign to the new user."),
 });
