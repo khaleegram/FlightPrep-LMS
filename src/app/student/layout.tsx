@@ -31,7 +31,7 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
         { href: "#", icon: FileText, label: "Mock Exams" },
         { href: "#", icon: LineChart, label: "My Progress" },
         { href: "#", icon: MessageSquare, label: "AI Tutor" },
-        { href: "#", icon: Trophy, label: "Leaderboard" },
+        { href: "/student/leaderboard", icon: Trophy, label: "Leaderboard" },
         { href: "/student/settings", icon: Settings, label: "Settings" },
     ];
 
