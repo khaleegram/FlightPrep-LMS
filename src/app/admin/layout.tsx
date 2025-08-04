@@ -27,15 +27,17 @@ import {
 } from '@/components/ui/card';
 import UserNav from '@/components/user-nav';
 import { useAuth } from '@/hooks/use-auth';
+import { usePathname } from 'next/navigation';
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const pathname = usePathname();
   
   const navItems = [
-    { href: "/admin/dashboard", icon: Home, label: "Dashboard", active: true },
+    { href: "/admin/dashboard", icon: Home, label: "Dashboard" },
     { href: "#", icon: BookCopy, label: "Question Bank" },
     { href: "#", icon: FileText, label: "Exam Management" },
-    { href: "#", icon: Users, label: "User Management" },
+    { href: "/admin/user-management", icon: Users, label: "User Management" },
     { href: "#", icon: Bot, label: "AI Customization" },
     { href: "#", icon: LineChart, label: "Analytics" },
     { href: "#", icon: Settings, label: "Settings" },
@@ -48,7 +50,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           key={item.label}
           href={item.href}
           className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-all ${
-            item.active
+            pathname.startsWith(item.href)
               ? 'bg-sidebar-accent text-sidebar-accent-foreground'
               : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
           }`}
