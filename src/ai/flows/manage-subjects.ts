@@ -32,7 +32,6 @@ const AddSubjectInputSchema = z.object({
   name: z.string().min(3, 'Subject name must be at least 3 characters long.'),
   department: z.string({ required_error: 'Department is required.' }),
 });
-type AddSubjectInput = z.infer<typeof AddSubjectInputSchema>;
 
 const AddSubjectOutputSchema = z.object({
   success: z.boolean(),
@@ -40,7 +39,7 @@ const AddSubjectOutputSchema = z.object({
   subjectId: z.string().optional(),
 });
 
-export async function addSubject(input: AddSubjectInput) {
+export async function addSubject(input: z.infer<typeof AddSubjectInputSchema>) {
   return addSubjectFlow(input);
 }
 
@@ -84,11 +83,8 @@ const SubjectSchema = z.object({
     name: z.string(),
     department: z.string(),
 });
-type Subject = z.infer<typeof SubjectSchema>;
 
 const ListSubjectsOutputSchema = z.array(SubjectSchema);
-export type ListSubjectsOutput = z.infer<typeof ListSubjectsOutputSchema>;
-
 
 export async function listSubjects(input?: z.infer<typeof ListSubjectsInputSchema>) {
   return listSubjectsFlow(input || {});
@@ -179,7 +175,6 @@ const DepartmentSchema = z.object({
     id: z.string(),
     name: z.string(),
 });
-export type Department = z.infer<typeof DepartmentSchema>;
 
 const ListDepartmentsOutputSchema = z.array(DepartmentSchema);
 
