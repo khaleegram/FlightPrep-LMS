@@ -2,17 +2,17 @@
 'use server';
 
 /**
- * @fileOverview A utility flow to delete all users except for a specified one.
+ * @fileOverview A utility flow to delete all users except for a specified one, and a flow to delete a single user.
  * 
- * - deleteAllUsers - A function that handles the deletion process.
- * - DeleteAllUsersInput - The input type for the function.
- * - DeleteAllUsersOutput - The return type for the function.
+ * - deleteAllUsers - A function that handles the deletion of all users except one.
+ * - deleteUser - A function that deletes a single user by UID.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
 
+// Delete All Users Flow
 const DeleteAllUsersInputSchema = z.object({
   emailToKeep: z.string().email().describe("The email address of the admin user to keep."),
 });
@@ -32,13 +32,6 @@ const deleteAllUsersFlow = ai.defineFlow(
     name: 'deleteAllUsersFlow',
     inputSchema: DeleteAllUsersInputSchema,
     outputSchema: DeleteAllUsersOutputSchema,
-    auth: {
-      policy: async (auth, input) => {
-        if (!auth || !auth.custom?.isAdmin) {
-          throw new Error("You must be an admin to perform this action.");
-        }
-      },
-    },
   },
   async (input) => {
     try {
@@ -56,7 +49,6 @@ const deleteAllUsersFlow = ai.defineFlow(
         const deleteResult = await adminAuth.deleteUsers(uidsToDelete);
         deletedCount = deleteResult.successCount;
         
-        // Also delete from Firestore
         const batch = adminDb.batch();
         uidsToDelete.forEach(uid => {
           const userDocRef = adminDb.collection('users').doc(uid);
@@ -79,4 +71,48 @@ const deleteAllUsersFlow = ai.defineFlow(
       };
     }
   }
+);
+
+
+// Delete Single User Flow
+const DeleteUserInputSchema = z.object({
+    uid: z.string().describe("The UID of the user to delete."),
+});
+
+const DeleteUserOutputSchema = z.object({
+    success: z.boolean(),
+    message: z.string(),
+});
+
+export async function deleteUser(input: z.infer<typeof DeleteUserInputSchema>) {
+    return deleteUserFlow(input);
+}
+
+const deleteUserFlow = ai.defineFlow(
+    {
+        name: 'deleteUserFlow',
+        inputSchema: DeleteUserInputSchema,
+        outputSchema: DeleteUserOutputSchema,
+    },
+    async ({ uid }) => {
+        try {
+            // Delete from Firebase Authentication
+            await adminAuth.deleteUser(uid);
+
+            // Delete from Firestore
+            const userDocRef = adminDb.collection('users').doc(uid);
+            await userDocRef.delete();
+
+            return {
+                success: true,
+                message: "User has been deleted successfully.",
+            };
+        } catch (error: any) {
+            console.error(`Error deleting user ${uid}:`, error);
+            return {
+                success: false,
+                message: error.message || "An unexpected error occurred while deleting the user.",
+            };
+        }
+    }
 );

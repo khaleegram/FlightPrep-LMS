@@ -35,7 +35,6 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
-    AlertDialogTrigger,
   } from "@/components/ui/alert-dialog"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -47,7 +46,7 @@ import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { listUsers, ListUsersOutput } from "@/ai/flows/list-users"
 import { inviteUser, InviteUserInput } from "@/ai/flows/invite-user"
-import { deleteAllUsers } from "@/ai/flows/delete-all-users"
+import { deleteAllUsers, deleteUser } from "@/ai/flows/delete-all-users"
 import { useAuth } from "@/hooks/use-auth"
 
 
@@ -82,7 +81,7 @@ const CleanupCard = ({ onCleanupDone }: { onCleanupDone: () => void }) => {
             <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Trash className="h-5 w-5"/> Database Cleanup</CardTitle>
                 <CardDescription className="text-destructive/80">
-                    It looks like there might be old user data. You can clean up the database, which will delete all users except for your own admin account.
+                    This is a one-time action to remove all users except for your own admin account.
                 </CardDescription>
             </CardHeader>
             <CardFooter>
@@ -97,7 +96,7 @@ const CleanupCard = ({ onCleanupDone }: { onCleanupDone: () => void }) => {
                         <AlertDialogHeader>
                         <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            This action cannot be undone. This will permanently delete all user accounts and their associated data, except for your currently logged-in admin account.
+                            This action cannot be undone. This will permanently delete all user accounts and their associated data, except for your currently logged-in admin account ({user?.email}).
                         </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -115,9 +114,11 @@ export default function UserManagementPage() {
     const [users, setUsers] = useState<ListUsersOutput>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isInviting, setIsInviting] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
     const [inviteEmail, setInviteEmail] = useState("");
     const [inviteRole, setInviteRole] = useState<"Student" | "Admin" | "">("");
     const { toast } = useToast();
+    const { user: currentUser } = useAuth();
 
     const fetchUsers = async () => {
         setIsLoading(true);
@@ -175,6 +176,27 @@ export default function UserManagementPage() {
             });
         } finally {
             setIsInviting(false);
+        }
+    }
+    
+    const handleDeleteUser = async (userToDelete: ListUsersOutput[0]) => {
+        if (currentUser?.uid === userToDelete.uid) {
+            toast({ variant: "destructive", title: "Action Not Allowed", description: "You cannot delete your own account." });
+            return;
+        }
+        setIsDeleting(true);
+        try {
+            const result = await deleteUser({ uid: userToDelete.uid });
+            if (result.success) {
+                toast({ title: "User Deleted", description: `User ${userToDelete.name} has been deleted.` });
+                await fetchUsers(); // Refresh list
+            } else {
+                throw new Error(result.message);
+            }
+        } catch (error: any) {
+             toast({ variant: "destructive", title: "Deletion Failed", description: error.message });
+        } finally {
+            setIsDeleting(false);
         }
     }
 
@@ -277,7 +299,7 @@ export default function UserManagementPage() {
                                             <TableCell className="text-right">
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
-                                                        <Button variant="ghost" className="h-8 w-8 p-0">
+                                                        <Button variant="ghost" className="h-8 w-8 p-0" disabled={isDeleting}>
                                                             <span className="sr-only">Open menu</span>
                                                             <MoreHorizontal className="h-4 w-4" />
                                                         </Button>
@@ -287,7 +309,25 @@ export default function UserManagementPage() {
                                                         <DropdownMenuItem>Edit User</DropdownMenuItem>
                                                         <DropdownMenuItem>View Details</DropdownMenuItem>
                                                         <DropdownMenuSeparator />
-                                                        <DropdownMenuItem className="text-destructive">Delete User</DropdownMenuItem>
+                                                        <AlertDialog>
+                                                            <AlertDialogTrigger asChild>
+                                                                <button className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 w-full text-destructive">
+                                                                    Delete User
+                                                                </button>
+                                                            </AlertDialogTrigger>
+                                                            <AlertDialogContent>
+                                                                <AlertDialogHeader>
+                                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                                <AlertDialogDescription>
+                                                                    This will permanently delete the user <span className="font-bold">{user.name}</span>. This action cannot be undone.
+                                                                </AlertDialogDescription>
+                                                                </AlertDialogHeader>
+                                                                <AlertDialogFooter>
+                                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                <AlertDialogAction onClick={() => handleDeleteUser(user)}>Confirm</AlertDialogAction>
+                                                                </AlertDialogFooter>
+                                                            </AlertDialogContent>
+                                                        </AlertDialog>
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
                                             </TableCell>
