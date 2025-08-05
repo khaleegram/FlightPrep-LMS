@@ -30,14 +30,14 @@ const AddSubjectInputSchema = z.object({
   name: z.string().min(3, 'Subject name must be at least 3 characters long.'),
   department: z.string({ required_error: 'Department is required.' }),
 });
-export type AddSubjectInput = z.infer<typeof AddSubjectInputSchema>;
+type AddSubjectInput = z.infer<typeof AddSubjectInputSchema>;
 
 const AddSubjectOutputSchema = z.object({
   success: z.boolean(),
   message: z.string(),
   subjectId: z.string().optional(),
 });
-export type AddSubjectOutput = z.infer<typeof AddSubjectOutputSchema>;
+type AddSubjectOutput = z.infer<typeof AddSubjectOutputSchema>;
 
 export async function addSubject(input: AddSubjectInput): Promise<AddSubjectOutput> {
   return addSubjectFlow(input);
@@ -60,7 +60,7 @@ const addSubjectFlow = ai.defineFlow(
 
       return {
         success: true,
-        message: `Subject "${input.name}" has been added to the ${input.department} department.`,
+        message: `Subject "${input.name}" has been added to the ${department} department.`,
         subjectId: subjectRef.id,
       };
     } catch (error: any) {
@@ -77,7 +77,7 @@ const addSubjectFlow = ai.defineFlow(
 const ListSubjectsInputSchema = z.object({
     department: z.string().optional(),
 });
-export type ListSubjectsInput = z.infer<typeof ListSubjectsInputSchema>;
+type ListSubjectsInput = z.infer<typeof ListSubjectsInputSchema>;
 
 
 const SubjectSchema = z.object({
@@ -85,10 +85,10 @@ const SubjectSchema = z.object({
     name: z.string(),
     department: z.string(),
 });
-export type Subject = z.infer<typeof SubjectSchema>;
+type Subject = z.infer<typeof SubjectSchema>;
 
 const ListSubjectsOutputSchema = z.array(SubjectSchema);
-export type ListSubjectsOutput = z.infer<typeof ListSubjectsOutputSchema>;
+type ListSubjectsOutput = z.infer<typeof ListSubjectsOutputSchema>;
 
 
 export async function listSubjects(input?: ListSubjectsInput): Promise<ListSubjectsOutput> {

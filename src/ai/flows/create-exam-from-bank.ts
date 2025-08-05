@@ -20,14 +20,14 @@ const CreateExamInputSchema = z.object({
   prompt: z.string().describe('A natural language prompt describing the desired exam content.'),
   questionCount: z.number().int().positive().describe('The number of questions to include in the exam.'),
 });
-export type CreateExamInput = z.infer<typeof CreateExamInputSchema>;
+type CreateExamInput = z.infer<typeof CreateExamInputSchema>;
 
 const CreateExamOutputSchema = z.object({
   success: z.boolean().describe('Whether the exam was created successfully.'),
   message: z.string().describe('A message indicating the result.'),
   examId: z.string().optional().describe('The ID of the newly created exam.'),
 });
-export type CreateExamOutput = z.infer<typeof CreateExamOutputSchema>;
+type CreateExamOutput = z.infer<typeof CreateExamOutputSchema>;
 
 // Define the schema for the AI's output, which is a list of selected question IDs
 const ExamQuestionSelectionSchema = z.object({

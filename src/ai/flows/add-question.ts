@@ -20,14 +20,14 @@ const AddQuestionInputSchema = z.object({
   department: z.string().describe('The department the question belongs to (e.g., Flying School).'),
   subject: z.string().describe('The subject or topic the question belongs to (e.g., Air Law, Meteorology).'),
 });
-export type AddQuestionInput = z.infer<typeof AddQuestionInputSchema>;
+type AddQuestionInput = z.infer<typeof AddQuestionInputSchema>;
 
 const AddQuestionOutputSchema = z.object({
   success: z.boolean().describe('Whether the question was added successfully.'),
   message: z.string().describe('A message indicating the result.'),
   questionId: z.string().optional().describe('The ID of the newly created question.'),
 });
-export type AddQuestionOutput = z.infer<typeof AddQuestionOutputSchema>;
+type AddQuestionOutput = z.infer<typeof AddQuestionOutputSchema>;
 
 export async function addQuestion(input: AddQuestionInput): Promise<AddQuestionOutput> {
   return addQuestionFlow(input);
