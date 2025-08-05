@@ -2,7 +2,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -39,13 +39,14 @@ import {
     DropdownMenuLabel,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { MoreHorizontal, PlusCircle, LoaderCircle } from "lucide-react"
+import { MoreHorizontal, PlusCircle, LoaderCircle, FileUp, Sparkles } from "lucide-react"
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast";
-import { createExam, CreateExamInput } from "@/ai/flows/create-exam";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { createExamFromSource, CreateExamFromSourceInput } from "@/ai/flows/create-exam-from-source";
 import { getFirestore, collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { app } from '@/lib/firebase';
 
@@ -62,9 +63,21 @@ const formSchema = z.object({
     title: z.string().min(5, "Title must be at least 5 characters long."),
     description: z.string().min(10, "Description must be at least 10 characters long."),
     duration: z.coerce.number().int().positive("Duration must be a positive number."),
-    questionCount: z.coerce.number().int().min(5, "Exam must have at least 5 questions."),
     prompt: z.string().min(20, "Prompt must be detailed enough for the AI to understand."),
+    difficulty: z.enum(['Easy', 'Medium', 'Hard']),
+    sourceFile: z.instanceof(FileList).optional(),
 });
+
+
+const fileToDataUri = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+};
+
 
 const CreateExamDialog = ({ onExamCreated }: { onExamCreated: () => void }) => {
     const { toast } = useToast();
@@ -77,16 +90,31 @@ const CreateExamDialog = ({ onExamCreated }: { onExamCreated: () => void }) => {
             title: "",
             description: "",
             duration: 60,
-            questionCount: 10,
             prompt: "",
+            difficulty: "Medium",
+            sourceFile: undefined,
         },
     });
 
     const onSubmit = async (values: z.infer<typeof formSchema>) => {
         setIsSubmitting(true);
         try {
-            const input: CreateExamInput = { ...values };
-            const result = await createExam(input);
+             let sourceDataUri: string | undefined = undefined;
+            if (values.sourceFile && values.sourceFile.length > 0) {
+                const file = values.sourceFile[0];
+                if (file.size > 4 * 1024 * 1024) { // 4MB limit
+                     toast({ variant: "destructive", title: "File Too Large", description: "Please upload a file smaller than 4MB." });
+                     setIsSubmitting(false);
+                     return;
+                }
+                sourceDataUri = await fileToDataUri(file);
+            }
+
+            const input: CreateExamFromSourceInput = { 
+                ...values,
+                sourceDataUri 
+            };
+            const result = await createExamFromSource(input);
 
             if (result.success) {
                 toast({
@@ -121,16 +149,18 @@ const CreateExamDialog = ({ onExamCreated }: { onExamCreated: () => void }) => {
             <DialogContent className="sm:max-w-3xl">
                 <form onSubmit={form.handleSubmit(onSubmit)}>
                     <DialogHeader>
-                        <DialogTitle>Create New Exam with AI</DialogTitle>
+                        <DialogTitle className="flex items-center gap-2">
+                           <Sparkles className="h-6 w-6 text-primary"/> AI Exam Generator
+                        </DialogTitle>
                         <DialogDescription>
-                            Describe the exam you want to create, and our AI agent will select the most relevant questions for you from the question bank.
+                           Provide a source document (like a PDF handout) and/or a detailed prompt. The AI will generate the questions and build the exam for you.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-6 py-8">
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                              <div className="grid gap-2">
                                 <Label htmlFor="title">Exam Title</Label>
-                                <Input id="title" {...form.register("title")} placeholder="e.g., PPL Air Law Final Exam" />
+                                <Input id="title" {...form.register("title")} placeholder="e.g., CPL Aerodynamics Midterm" />
                                 {form.formState.errors.title && <p className="text-sm text-destructive">{form.formState.errors.title.message}</p>}
                             </div>
                              <div className="grid gap-2">
@@ -139,25 +169,49 @@ const CreateExamDialog = ({ onExamCreated }: { onExamCreated: () => void }) => {
                                 {form.formState.errors.description && <p className="text-sm text-destructive">{form.formState.errors.description.message}</p>}
                             </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="grid gap-2">
                                 <Label htmlFor="duration">Duration (minutes)</Label>
                                 <Input id="duration" type="number" {...form.register("duration")} />
                                 {form.formState.errors.duration && <p className="text-sm text-destructive">{form.formState.errors.duration.message}</p>}
                             </div>
                             <div className="grid gap-2">
-                                <Label htmlFor="questionCount">Number of Questions</Label>
-                                <Input id="questionCount" type="number" {...form.register("questionCount")} />
-                                {form.formState.errors.questionCount && <p className="text-sm text-destructive">{form.formState.errors.questionCount.message}</p>}
+                                <Label htmlFor="difficulty">Difficulty</Label>
+                                <Controller
+                                    control={form.control}
+                                    name="difficulty"
+                                    render={({ field }) => (
+                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <SelectTrigger id="difficulty">
+                                                <SelectValue placeholder="Select difficulty..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="Easy">Easy</SelectItem>
+                                                <SelectItem value="Medium">Medium</SelectItem>
+                                                <SelectItem value="Hard">Hard</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    )}
+                                />
                             </div>
                         </div>
+
+                         <div className="grid gap-2">
+                            <Label htmlFor="sourceFile">Source Document (Optional)</Label>
+                             <div className="flex items-center gap-2 p-3 border-dashed border-2 rounded-lg justify-center text-muted-foreground">
+                                <FileUp className="h-6 w-6"/>
+                                <Input id="sourceFile" type="file" {...form.register("sourceFile")} className="text-sm border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"/>
+                             </div>
+                            <p className="text-xs text-muted-foreground">Upload a PDF or text file. The AI will either parse existing questions or generate new ones from this handout.</p>
+                        </div>
+
 
                         <div className="grid gap-2">
                             <Label htmlFor="prompt">AI Prompt</Label>
                             <Textarea 
                                 id="prompt" 
                                 {...form.register("prompt")} 
-                                placeholder="Example: Create a CPL-level exam focusing on meteorology, especially interpreting TAF and METAR reports. Include a few questions about high-altitude weather phenomena." 
+                                placeholder="Example: Generate a 15-question quiz from the uploaded handout on 'High-Speed Flight'. Focus on the concepts of Mach number and shockwaves." 
                                 className="min-h-32"
                             />
                             {form.formState.errors.prompt && <p className="text-sm text-destructive">{form.formState.errors.prompt.message}</p>}
@@ -212,7 +266,7 @@ export default function ExamManagementPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold md:text-4xl font-headline">Exam Management</h1>
-                    <p className="text-muted-foreground">Create, view, and manage mock exams.</p>
+                    <p className="text-muted-foreground">Create, view, and manage mock exams using the AI agent.</p>
                 </div>
                 <CreateExamDialog onExamCreated={() => {}} />
             </div>
@@ -220,7 +274,7 @@ export default function ExamManagementPage() {
             <Card>
                 <CardHeader>
                     <CardTitle>Existing Exams</CardTitle>
-                    <CardDescription>A list of all exams currently available on the platform, created by the AI agent.</CardDescription>
+                    <CardDescription>A list of all exams currently available on the platform.</CardDescription>
                 </CardHeader>
                 <CardContent>
                      {isLoading ? (
