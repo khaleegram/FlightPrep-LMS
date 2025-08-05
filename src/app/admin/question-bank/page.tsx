@@ -1,6 +1,7 @@
+
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -46,13 +47,15 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast";
 import { addQuestion, AddQuestionInput } from "@/ai/flows/add-question";
+import { getFirestore, collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { app } from '@/lib/firebase';
 
-const MOCK_QUESTIONS = [
-    { id: '1', text: "What is the minimum visibility for VFR in Class G airspace above 1,200 feet AGL?", subject: "Air Law"},
-    { id: '2', text: "What does 'ISA' stand for in meteorology?", subject: "Meteorology"},
-    { id: '3', text: "Describe the function of a magneto in a piston engine.", subject: "Aircraft Systems"},
-    { id: '4', text: "What are the four forces acting on an aircraft in flight?", subject: "Principles of Flight"},
-]
+type Question = {
+    id: string;
+    questionText: string;
+    subject: string;
+    createdAt: string;
+}
 
 const formSchema = z.object({
     questionText: z.string().min(10, "Question must be at least 10 characters long."),
@@ -196,13 +199,33 @@ const CreateQuestionDialog = ({ onQuestionAdded }: { onQuestionAdded: () => void
 
 
 export default function QuestionBankPage() {
-    // In a real app, you'd fetch this data from your backend.
-    const [questions, setQuestions] = useState(MOCK_QUESTIONS);
+    const [questions, setQuestions] = useState<Question[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const { toast } = useToast();
 
-    const handleQuestionAdded = () => {
-        // Here you would re-fetch the questions list from the backend
-        console.log("Question added, refresh list!");
-    }
+    useEffect(() => {
+        const db = getFirestore(app);
+        const q = query(collection(db, "questions"), orderBy("createdAt", "desc"));
+
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+            const questionsData: Question[] = [];
+            querySnapshot.forEach((doc) => {
+                questionsData.push({ id: doc.id, ...doc.data() } as Question);
+            });
+            setQuestions(questionsData);
+            setIsLoading(false);
+        }, (error) => {
+            console.error("Error fetching questions: ", error);
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "Could not fetch questions from the database.",
+            });
+            setIsLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [toast]);
     
     return (
         <div className="flex flex-col gap-8">
@@ -211,7 +234,7 @@ export default function QuestionBankPage() {
                     <h1 className="text-3xl font-bold md:text-4xl font-headline">Question Bank</h1>
                     <p className="text-muted-foreground">Manage all questions for mock exams across all subjects.</p>
                 </div>
-                <CreateQuestionDialog onQuestionAdded={handleQuestionAdded} />
+                <CreateQuestionDialog onQuestionAdded={() => {}} />
             </div>
 
             <Card>
@@ -220,39 +243,52 @@ export default function QuestionBankPage() {
                     <CardDescription>A list of all questions currently in the system.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                     <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Question</TableHead>
-                                <TableHead className="w-[150px]">Subject</TableHead>
-                                <TableHead className="w-[100px] text-right">Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {questions.map(q => (
-                                <TableRow key={q.id}>
-                                    <TableCell className="font-medium">{q.text}</TableCell>
-                                    <TableCell><Badge variant="outline">{q.subject}</Badge></TableCell>
-                                    <TableCell className="text-right">
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" className="h-8 w-8 p-0">
-                                                    <span className="sr-only">Open menu</span>
-                                                    <MoreHorizontal className="h-4 w-4" />
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end">
-                                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                                <DropdownMenuItem>Edit</DropdownMenuItem>
-                                                <DropdownMenuItem>View Details</DropdownMenuItem>
-                                                <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-                                    </TableCell>
+                    {isLoading ? (
+                         <div className="flex justify-center items-center h-48">
+                            <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+                         </div>
+                    ) : (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Question</TableHead>
+                                    <TableHead className="w-[150px]">Subject</TableHead>
+                                    <TableHead className="w-[100px] text-right">Actions</TableHead>
                                 </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
+                            </TableHeader>
+                            <TableBody>
+                                {questions.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={3} className="text-center h-24">
+                                            No questions found. Try seeding the database from the dashboard.
+                                        </TableCell>
+                                    </TableRow>
+                                ) : (
+                                    questions.map(q => (
+                                    <TableRow key={q.id}>
+                                        <TableCell className="font-medium">{q.questionText}</TableCell>
+                                        <TableCell><Badge variant="outline">{q.subject}</Badge></TableCell>
+                                        <TableCell className="text-right">
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" className="h-8 w-8 p-0">
+                                                        <span className="sr-only">Open menu</span>
+                                                        <MoreHorizontal className="h-4 w-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                                    <DropdownMenuItem>Edit</DropdownMenuItem>
+                                                    <DropdownMenuItem>View Details</DropdownMenuItem>
+                                                    <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </TableCell>
+                                    </TableRow>
+                                )))}
+                            </TableBody>
+                        </Table>
+                    )}
                 </CardContent>
             </Card>
         </div>

@@ -13,3 +13,4 @@ import '@/ai/flows/get-analytics-data.ts';
 import '@/ai/flows/customize-ai-tutor.ts';
 import '@/ai/flows/add-question.ts';
 import '@/ai/flows/create-exam.ts';
+import '@/ai/flows/seed-database.ts';

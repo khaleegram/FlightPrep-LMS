@@ -1,3 +1,6 @@
+
+"use client";
+
 import Link from "next/link"
 import {
   ArrowUpRight,
@@ -5,6 +8,7 @@ import {
   FileText,
   BadgePercent,
   Users,
+  Database,
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -24,6 +28,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { seedDatabase } from "@/ai/flows/seed-database";
+import { LoaderCircle } from "lucide-react";
 
 const statCards = [
     { title: "Total Students", value: "1,250", change: "+20.1% from last month", icon: Users },
@@ -45,6 +53,54 @@ const topDepartments = [
     { name: "Air Traffic Control", score: "88%", avatar: "ATC" },
     { name: "Aircraft Maintenance", score: "85%", avatar: "AME" },
 ];
+
+const SeedDataCard = () => {
+    const [isSeeding, setIsSeeding] = useState(false);
+    const { toast } = useToast();
+
+    const handleSeed = async () => {
+        setIsSeeding(true);
+        try {
+            const result = await seedDatabase();
+            if (result.success) {
+                toast({
+                    title: "Database Seeded!",
+                    description: `Successfully created ${result.usersCreated} users and ${result.questionsCreated} questions.`,
+                });
+            } else {
+                throw new Error(result.message);
+            }
+        } catch (error: any) {
+            toast({
+                variant: "destructive",
+                title: "Seeding Failed",
+                description: error.message || "An unexpected error occurred.",
+            });
+        } finally {
+            setIsSeeding(false);
+        }
+    };
+
+    return (
+        <Card className="bg-accent/20 border-accent">
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                    <Database className="h-5 w-5" />
+                    Seed Database
+                </CardTitle>
+                <CardDescription>
+                    Populate your Firestore database with realistic, AI-generated sample data for users and questions.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Button onClick={handleSeed} disabled={isSeeding} className="w-full">
+                    {isSeeding && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                    {isSeeding ? "Seeding..." : "Generate Sample Data"}
+                </Button>
+            </CardContent>
+        </Card>
+    )
+}
 
 
 export default function AdminDashboard() {
@@ -111,27 +167,30 @@ export default function AdminDashboard() {
             </Table>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Top Performing Departments</CardTitle>
-            <CardDescription>
-              Departments with the highest average scores this month.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-8">
-            {topDepartments.map(dept => (
-                <div key={dept.name} className="flex items-center gap-4">
-                    <Avatar className="hidden h-9 w-9 sm:flex">
-                        <AvatarFallback>{dept.avatar}</AvatarFallback>
-                    </Avatar>
-                    <div className="grid gap-1">
-                        <p className="text-sm font-medium leading-none">{dept.name}</p>
+        <div className="flex flex-col gap-4">
+            <Card>
+            <CardHeader>
+                <CardTitle>Top Performing Departments</CardTitle>
+                <CardDescription>
+                Departments with the highest average scores this month.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-8">
+                {topDepartments.map(dept => (
+                    <div key={dept.name} className="flex items-center gap-4">
+                        <Avatar className="hidden h-9 w-9 sm:flex">
+                            <AvatarFallback>{dept.avatar}</AvatarFallback>
+                        </Avatar>
+                        <div className="grid gap-1">
+                            <p className="text-sm font-medium leading-none">{dept.name}</p>
+                        </div>
+                        <div className="ml-auto font-medium text-primary">{dept.score}</div>
                     </div>
-                    <div className="ml-auto font-medium text-primary">{dept.score}</div>
-                </div>
-            ))}
-          </CardContent>
-        </Card>
+                ))}
+            </CardContent>
+            </Card>
+            <SeedDataCard />
+        </div>
       </div>
     </div>
   )

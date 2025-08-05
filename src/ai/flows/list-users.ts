@@ -2,7 +2,7 @@
 'use server';
 
 /**
- * @fileOverview A secure flow to list all users.
+ * @fileOverview A secure flow to list all users from Firebase Auth and Firestore.
  *
  * - listUsers - Fetches all users from Firebase Authentication.
  * - ListUsersOutput - The return type for the listUsers function.
@@ -11,9 +11,10 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import type { UserRecord, ListUsersResult } from 'firebase-admin/auth';
-import { adminAuth } from '@/lib/firebase-admin';
+import { adminAuth, adminDb } from '@/lib/firebase-admin';
 
 const UserSchema = z.object({
+  uid: z.string().describe('The unique ID of the user.'),
   name: z.string().describe('The full name of the user.'),
   email: z.string().email().describe("The user's email address."),
   role: z.enum(['Admin', 'Student', 'Unknown']).describe("The user's role."),
@@ -39,8 +40,7 @@ const determineRole = (user: UserRecord): 'Admin' | 'Student' | 'Unknown' => {
     if (user.customClaims?.isStudent) {
         return 'Student';
     }
-    // Default to Student if no specific role is found, as this is the most common case
-    // and new users created via the signup form won't have claims initially.
+    // New users created via the signup form won't have claims initially. Default to Student.
     if (!user.customClaims?.isAdmin && !user.customClaims?.isStudent) {
         return 'Student';
     }
@@ -58,7 +58,6 @@ const listUsersFlow = ai.defineFlow(
     inputSchema: z.void(),
     outputSchema: ListUsersOutputSchema,
     auth: {
-        // This ensures that only users with an 'isAdmin' custom claim can run this flow.
         policy: async (auth, input) => {
           if (!auth) {
             throw new Error("Authentication required.");
@@ -80,8 +79,8 @@ const listUsersFlow = ai.defineFlow(
             nextPageToken = listUsersResult.pageToken;
         } while (nextPageToken);
 
-
         const users = allUsers.map(user => ({
+            uid: user.uid,
             name: user.displayName || 'Unnamed User',
             email: user.email || 'no-email@example.com',
             role: determineRole(user),
@@ -91,7 +90,6 @@ const listUsersFlow = ai.defineFlow(
         return users;
     } catch (error) {
         console.error('Error listing users:', error);
-        // In case of error, return an empty array or handle it as needed
         return [];
     }
   }

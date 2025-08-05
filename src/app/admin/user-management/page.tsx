@@ -49,12 +49,12 @@ export default function UserManagementPage() {
         try {
             const userList = await listUsers();
             setUsers(userList);
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to fetch users:", error);
             toast({
                 variant: "destructive",
                 title: "Error",
-                description: "Could not fetch the user list.",
+                description: `Could not fetch the user list. ${error.message}`,
             });
         } finally {
             setIsLoading(false);
@@ -146,7 +146,7 @@ export default function UserManagementPage() {
                                     </SelectContent>
                                 </Select>
                            </div>
-                           <Button type="submit" disabled={isInviting}>
+                           <Button type="submit" disabled={isInviting || !inviteEmail || !inviteRole}>
                                 {isInviting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
                                 {isInviting ? "Sending..." : "Send Invitation"}
                            </Button>
@@ -175,8 +175,15 @@ export default function UserManagementPage() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {users.map(user => (
-                                        <TableRow key={user.email}>
+                                    {users.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={3} className="text-center h-24">
+                                                No users found. Try seeding the database from the dashboard.
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        users.map(user => (
+                                        <TableRow key={user.uid}>
                                             <TableCell>
                                                 <div className="flex items-center gap-3">
                                                     <Avatar className="h-9 w-9">
@@ -209,7 +216,7 @@ export default function UserManagementPage() {
                                                 </DropdownMenu>
                                             </TableCell>
                                         </TableRow>
-                                    ))}
+                                    )))}
                                 </TableBody>
                             </Table>
                         )}

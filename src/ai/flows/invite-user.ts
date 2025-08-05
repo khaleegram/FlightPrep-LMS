@@ -11,7 +11,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { adminAuth } from '@/lib/firebase-admin';
+import { adminAuth, adminDb } from '@/lib/firebase-admin';
 
 const InviteUserInputSchema = z.object({
   email: z.string().email().describe("The new user's email address."),
@@ -35,7 +35,6 @@ const inviteUserFlow = ai.defineFlow(
     inputSchema: InviteUserInputSchema,
     outputSchema: InviteUserOutputSchema,
     auth: {
-        // This ensures that only users with an 'isAdmin' custom claim can run this flow.
         policy: async (auth, input) => {
           if (!auth) {
             throw new Error("Authentication required.");
@@ -53,6 +52,7 @@ const inviteUserFlow = ai.defineFlow(
         password: `temp-password-${Date.now()}`,
         emailVerified: false, 
         disabled: false,
+        displayName: input.email.split('@')[0], // Use email prefix as initial name
       });
 
       const claims: Record<string, boolean> = {};
@@ -63,6 +63,16 @@ const inviteUserFlow = ai.defineFlow(
       }
       
       await adminAuth.setCustomUserClaims(userRecord.uid, claims);
+
+      // Create a corresponding user document in Firestore
+      await adminDb.collection('users').doc(userRecord.uid).set({
+        displayName: userRecord.displayName,
+        email: userRecord.email,
+        role: input.role,
+        createdAt: new Date().toISOString(),
+        leaderboardScore: 0, // Initialize score
+      });
+
 
       console.log(`User ${input.email} created with UID ${userRecord.uid} and role ${input.role}`);
 

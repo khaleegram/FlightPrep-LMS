@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -10,6 +11,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import { adminDb } from '@/lib/firebase-admin';
 
 const AddQuestionInputSchema = z.object({
   questionText: z.string().describe('The full text of the question.'),
@@ -22,6 +24,7 @@ export type AddQuestionInput = z.infer<typeof AddQuestionInputSchema>;
 const AddQuestionOutputSchema = z.object({
   success: z.boolean().describe('Whether the question was added successfully.'),
   message: z.string().describe('A message indicating the result.'),
+  questionId: z.string().optional().describe('The ID of the newly created question.'),
 });
 export type AddQuestionOutput = z.infer<typeof AddQuestionOutputSchema>;
 
@@ -46,14 +49,24 @@ const addQuestionFlow = ai.defineFlow(
     },
   },
   async (input) => {
-    // In a real application, you would save this new question to a database (e.g., Firestore).
-    console.log(`Adding new question for subject: ${input.subject}`);
-    console.log(`Question: ${input.questionText}`);
-    
-    // For now, we just simulate success.
-    return {
-      success: true,
-      message: `New question has been added to the ${input.subject} question bank.`,
-    };
+    try {
+        const questionRef = adminDb.collection('questions').doc();
+        await questionRef.set({
+            ...input,
+            createdAt: new Date().toISOString(),
+        });
+
+        return {
+            success: true,
+            message: `New question has been added to the ${input.subject} question bank.`,
+            questionId: questionRef.id,
+        };
+    } catch (error: any) {
+        console.error("Error adding question to Firestore:", error);
+        return {
+            success: false,
+            message: "Failed to add question to the database.",
+        };
+    }
   }
 );
