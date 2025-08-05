@@ -178,7 +178,7 @@ export default function UserManagementPage() {
                                     {users.length === 0 ? (
                                         <TableRow>
                                             <TableCell colSpan={3} className="text-center h-24">
-                                                No users found. Try seeding the database from the dashboard.
+                                                No users found. Invite a user to get started.
                                             </TableCell>
                                         </TableRow>
                                     ) : (
@@ -196,7 +196,7 @@ export default function UserManagementPage() {
                                                 </div>
                                             </TableCell>
                                             <TableCell>
-                                                <Badge variant={user.role === 'Admin' ? 'destructive' : 'secondary'}>{user.role}</Badge>
+                                                <Badge variant={user.role === 'Admin' ? 'default' : 'secondary'}>{user.role}</Badge>
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <DropdownMenu>
@@ -227,3 +227,5 @@ export default function UserManagementPage() {
       </div>
     );
   }
+
+    
