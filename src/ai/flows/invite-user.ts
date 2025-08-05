@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -10,12 +11,24 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { initializeApp, getApps } from 'firebase-admin/app';
+import { initializeApp, getApps, cert, App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 
 // Initialize Firebase Admin SDK if not already initialized
 if (!getApps().length) {
-  initializeApp();
+    const firebaseConfig = {
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    };
+
+    try {
+        initializeApp({
+            credential: cert(firebaseConfig),
+        });
+    } catch (error) {
+        console.error("Firebase admin initialization error", error);
+    }
 }
 
 
