@@ -9,6 +9,7 @@ import {
   BadgePercent,
   Users,
   Database,
+  Mail,
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -28,6 +29,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { seedDatabase } from "@/ai/flows/seed-database";
@@ -56,16 +59,27 @@ const topDepartments = [
 
 const SeedDataCard = () => {
     const [isSeeding, setIsSeeding] = useState(false);
+    const [adminEmail, setAdminEmail] = useState("");
     const { toast } = useToast();
 
-    const handleSeed = async () => {
+    const handleSeed = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if(!adminEmail) {
+            toast({
+                variant: "destructive",
+                title: "Email Required",
+                description: "Please enter an email for the admin user.",
+            });
+            return;
+        }
+
         setIsSeeding(true);
         try {
-            const result = await seedDatabase();
+            const result = await seedDatabase({ adminEmail });
             if (result.success) {
                 toast({
                     title: "Database Seeded!",
-                    description: `Successfully created ${result.usersCreated} users and ${result.questionsCreated} questions.`,
+                    description: result.message,
                 });
             } else {
                 throw new Error(result.message);
@@ -83,21 +97,38 @@ const SeedDataCard = () => {
 
     return (
         <Card className="bg-accent/20 border-accent">
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                    <Database className="h-5 w-5" />
-                    Seed Database
-                </CardTitle>
-                <CardDescription>
-                    Populate your Firestore database with realistic, AI-generated sample data for users and questions.
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                <Button onClick={handleSeed} disabled={isSeeding} className="w-full">
-                    {isSeeding && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
-                    {isSeeding ? "Seeding..." : "Generate Sample Data"}
-                </Button>
-            </CardContent>
+            <form onSubmit={handleSeed}>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <Database className="h-5 w-5" />
+                        Create Admin User
+                    </CardTitle>
+                    <CardDescription>
+                        Create a single administrative user in Firebase Auth and Firestore. This user will have `isAdmin` claims.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                     <div className="space-y-2">
+                        <Label htmlFor="admin-email">Admin Email</Label>
+                        <div className="relative">
+                             <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                             <Input 
+                                id="admin-email"
+                                type="email"
+                                placeholder="admin@example.com"
+                                value={adminEmail}
+                                onChange={(e) => setAdminEmail(e.target.value)}
+                                className="pl-9"
+                                required
+                             />
+                        </div>
+                     </div>
+                    <Button type="submit" disabled={isSeeding || !adminEmail} className="w-full">
+                        {isSeeding && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                        {isSeeding ? "Creating User..." : "Create Admin User"}
+                    </Button>
+                </CardContent>
+            </form>
         </Card>
     )
 }
