@@ -39,7 +39,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     { href: "#", icon: FileText, label: "Exam Management" },
     { href: "/admin/user-management", icon: Users, label: "User Management" },
     { href: "#", icon: Bot, label: "AI Customization" },
-    { href: "#", icon: LineChart, label: "Analytics" },
+    { href: "/admin/analytics", icon: LineChart, label: "Analytics" },
     { href: "#", icon: Settings, label: "Settings" },
   ];
 
