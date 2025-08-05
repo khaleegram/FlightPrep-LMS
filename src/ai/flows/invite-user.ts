@@ -11,26 +11,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { initializeApp, getApps, cert, App } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
-
-// Initialize Firebase Admin SDK if not already initialized
-if (!getApps().length) {
-    const firebaseConfig = {
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-    };
-
-    try {
-        initializeApp({
-            credential: cert(firebaseConfig),
-        });
-    } catch (error) {
-        console.error("Firebase admin initialization error", error);
-    }
-}
-
+import { adminAuth } from '@/lib/firebase-admin';
 
 const InviteUserInputSchema = z.object({
   email: z.string().email().describe("The new user's email address."),
@@ -59,7 +40,7 @@ const inviteUserFlow = ai.defineFlow(
       // 1. Create a new user with the provided email.
       // A temporary password is required, but the user will likely reset it
       // or sign in with a provider. You could also implement a passwordless email link.
-      const userRecord = await getAuth().createUser({
+      const userRecord = await adminAuth.createUser({
         email: input.email,
         password: `temp-password-${Date.now()}`, // A random temporary password
         emailVerified: false, // User will need to verify their email
@@ -74,7 +55,7 @@ const inviteUserFlow = ai.defineFlow(
         claims.isStudent = true;
       }
       
-      await getAuth().setCustomUserClaims(userRecord.uid, claims);
+      await adminAuth.setCustomUserClaims(userRecord.uid, claims);
 
       // In a real app, you would also trigger an email to be sent to the user.
       // This can be done via another service or a Firebase Extension.

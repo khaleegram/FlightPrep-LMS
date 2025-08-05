@@ -10,26 +10,8 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
-import { getAuth, UserRecord } from 'firebase-admin/auth';
-
-
-// Initialize Firebase Admin SDK if not already initialized
-if (!getApps().length) {
-    const firebaseConfig = {
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-      projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-    };
-
-    try {
-        initializeApp({
-            credential: cert(firebaseConfig),
-        });
-    } catch (error) {
-        console.error("Firebase admin initialization error", error);
-    }
-}
+import type { UserRecord } from 'firebase-admin/auth';
+import { adminAuth } from '@/lib/firebase-admin';
 
 const UserSchema = z.object({
   name: z.string().describe('The full name of the user.'),
@@ -74,7 +56,7 @@ const listUsersFlow = ai.defineFlow(
   },
   async () => {
     try {
-        const userRecords = await getAuth().listUsers(100); // Get up to 100 users
+        const userRecords = await adminAuth.listUsers(100); // Get up to 100 users
         const users = userRecords.users.map(user => ({
             name: user.displayName || 'Unnamed User',
             email: user.email || 'no-email@example.com',
