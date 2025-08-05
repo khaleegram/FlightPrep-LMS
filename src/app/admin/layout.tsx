@@ -12,6 +12,7 @@ import {
   PanelLeft,
   Settings,
   Users,
+  Library,
 } from 'lucide-react';
 import {
   Sheet,
@@ -37,6 +38,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   const navItems = [
     { href: "/admin/dashboard", icon: Home, label: "Dashboard" },
     { href: "/admin/question-bank", icon: BookCopy, label: "Question Bank" },
+    { href: "/admin/subject-management", icon: Library, label: "Subject Management" },
     { href: "/admin/exam-management", icon: FileText, label: "Exam Management" },
     { href: "/admin/user-management", icon: Users, label: "User Management" },
     { href: "/admin/ai-customization", icon: Bot, label: "AI Customization" },

@@ -50,18 +50,10 @@ import { addQuestion, AddQuestionInput } from "@/ai/flows/add-question";
 import { getFirestore, collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { app } from '@/lib/firebase';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { listSubjects, Subject } from "@/ai/flows/manage-subjects";
+
 
 const departments = ['Flying School', 'Aircraft Maintenance Engineering', 'Air Traffic Control', 'Cabin Crew', 'Prospective Students'] as const;
-
-const subjects = [
-    'Air Law', 
-    'Meteorology', 
-    'Navigation', 
-    'Aircraft Systems', 
-    'Principles of Flight', 
-    'Human Performance',
-    'Instruments',
-] as const;
 
 type Question = {
     id: string;
@@ -83,6 +75,7 @@ const CreateQuestionDialog = ({ onQuestionAdded }: { onQuestionAdded: () => void
     const { toast } = useToast();
     const [open, setOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [availableSubjects, setAvailableSubjects] = useState<Subject[]>([]);
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -99,6 +92,21 @@ const CreateQuestionDialog = ({ onQuestionAdded }: { onQuestionAdded: () => void
         control: form.control,
         name: "options",
     });
+
+    const selectedDepartment = form.watch("department");
+
+    useEffect(() => {
+        if (selectedDepartment) {
+            listSubjects({ department: selectedDepartment }).then(subjects => {
+                setAvailableSubjects(subjects);
+                form.resetField("subject");
+            });
+        } else {
+            setAvailableSubjects([]);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedDepartment]);
+
 
     const onSubmit = async (values: z.infer<typeof formSchema>) => {
         setIsSubmitting(true);
@@ -177,12 +185,12 @@ const CreateQuestionDialog = ({ onQuestionAdded }: { onQuestionAdded: () => void
                                     control={form.control}
                                     name="subject"
                                     render={({ field }) => (
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <Select onValueChange={field.onChange} value={field.value} disabled={!selectedDepartment}>
                                             <SelectTrigger id="subject">
                                                 <SelectValue placeholder="Select a subject..." />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {subjects.map(sub => <SelectItem key={sub} value={sub}>{sub}</SelectItem>)}
+                                                {availableSubjects.map(sub => <SelectItem key={sub.id} value={sub.name}>{sub.name}</SelectItem>)}
                                             </SelectContent>
                                         </Select>
                                     )}

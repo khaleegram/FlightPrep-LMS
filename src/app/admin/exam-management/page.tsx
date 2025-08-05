@@ -53,6 +53,7 @@ import { app } from '@/lib/firebase';
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { listSubjects, Subject } from "@/ai/flows/manage-subjects";
 
 const departments = ['Flying School', 'Aircraft Maintenance Engineering', 'Air Traffic Control', 'Cabin Crew', 'Prospective Students'] as const;
 
@@ -248,6 +249,7 @@ const CreateExamManuallyDialog = ({ onExamCreated, allQuestions }: { onExamCreat
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [selectedDepartment, setSelectedDepartment] = useState<string>("");
     const [selectedSubject, setSelectedSubject] = useState<string>("");
+    const [availableSubjects, setAvailableSubjects] = useState<Subject[]>([]);
 
     const form = useForm<z.infer<typeof createManuallyFormSchema>>({
         resolver: zodResolver(createManuallyFormSchema),
@@ -256,13 +258,21 @@ const CreateExamManuallyDialog = ({ onExamCreated, allQuestions }: { onExamCreat
 
     const { setValue } = form;
 
-    const availableSubjects = useMemo(() => {
-        if (!selectedDepartment) return [];
-        const subjects = allQuestions
-            .filter(q => q.department === selectedDepartment)
-            .map(q => q.subject);
-        return [...new Set(subjects)];
-    }, [allQuestions, selectedDepartment]);
+    useEffect(() => {
+        if (selectedDepartment) {
+            listSubjects({ department: selectedDepartment }).then(subjects => {
+                setAvailableSubjects(subjects);
+                setSelectedSubject(""); 
+                setValue("questionIds", []);
+            });
+        } else {
+            setAvailableSubjects([]);
+            setSelectedSubject("");
+             setValue("questionIds", []);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedDepartment]);
+
 
     const filteredQuestions = useMemo(() => {
         if (!selectedDepartment || !selectedSubject) return [];
@@ -271,7 +281,7 @@ const CreateExamManuallyDialog = ({ onExamCreated, allQuestions }: { onExamCreat
 
     useEffect(() => {
         setValue("questionIds", []);
-    }, [selectedDepartment, selectedSubject, setValue]);
+    }, [selectedSubject, setValue]);
 
 
     const selectedIds = form.watch("questionIds");
@@ -325,7 +335,7 @@ const CreateExamManuallyDialog = ({ onExamCreated, allQuestions }: { onExamCreat
                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 col-span-1 md:col-span-2">
                             <div className="grid gap-2">
                                 <Label>Department</Label>
-                                <Select value={selectedDepartment} onValueChange={val => { setSelectedDepartment(val); setSelectedSubject(""); }}>
+                                <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
                                     <SelectTrigger><SelectValue placeholder="Select a department..." /></SelectTrigger>
                                     <SelectContent>
                                         {departments.map(dep => <SelectItem key={dep} value={dep}>{dep}</SelectItem>)}
@@ -337,7 +347,7 @@ const CreateExamManuallyDialog = ({ onExamCreated, allQuestions }: { onExamCreat
                                 <Select value={selectedSubject} onValueChange={setSelectedSubject} disabled={!selectedDepartment}>
                                     <SelectTrigger><SelectValue placeholder="Select a subject..." /></SelectTrigger>
                                     <SelectContent>
-                                        {availableSubjects.map(sub => <SelectItem key={sub} value={sub}>{sub}</SelectItem>)}
+                                        {availableSubjects.map(sub => <SelectItem key={sub.id} value={sub.name}>{sub.name}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
                             </div>
