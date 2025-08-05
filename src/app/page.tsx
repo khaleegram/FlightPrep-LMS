@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState } from 'react';
@@ -64,33 +65,42 @@ export default function LoginPage() {
   const { toast } = useToast();
 
   const handleRoleBasedLogin = async (user: User, role: 'student' | 'admin') => {
-    const idTokenResult = await user.getIdTokenResult(true); // Force refresh
+    try {
+        const idTokenResult = await user.getIdTokenResult(true); // Force refresh
     
-    if (role === 'admin') {
-        if (idTokenResult.claims.isAdmin) {
-          toast({ title: 'Success', description: 'Admin logged in successfully!' });
-          router.push('/admin/dashboard');
-        } else {
-          await auth.signOut(); // Sign out non-admin user
-          toast({
+        if (role === 'admin') {
+            if (idTokenResult.claims.isAdmin) {
+                toast({ title: 'Success', description: 'Admin logged in successfully!' });
+                router.push('/admin/dashboard');
+            } else {
+                await auth.signOut(); // Sign out non-admin user
+                toast({
+                    variant: 'destructive',
+                    title: 'Access Denied',
+                    description: 'You do not have permission to access the admin panel.',
+                });
+            }
+        } else { // role === 'student'
+            if (idTokenResult.claims.isStudent || !idTokenResult.claims.isAdmin) {
+                toast({ title: 'Success', description: 'Logged in successfully!' });
+                router.push('/student/dashboard');
+            } else {
+                await auth.signOut();
+                toast({
+                    variant: 'destructive',
+                    title: 'Login Error',
+                    description: 'This account is configured for admin access. Please use the Admin login tab.',
+                });
+            }
+        }
+    } catch (error: any) {
+        toast({
             variant: 'destructive',
-            title: 'Access Denied',
-            description: 'You do not have permission to access the admin panel.',
-          });
-        }
-    } else { // role === 'student'
-        // A user is considered a student if they are not an admin or explicitly have the student claim.
-        if (!idTokenResult.claims.isAdmin || idTokenResult.claims.isStudent) {
-            toast({ title: 'Success', description: 'Logged in successfully!' });
-            router.push('/student/dashboard');
-        } else {
-             await auth.signOut(); 
-            toast({
-                variant: 'destructive',
-                title: 'Login Error',
-                description: 'This account is not configured for student access.',
-            });
-        }
+            title: 'Login Error',
+            description: `An error occurred during role verification: ${error.message}`,
+        });
+    } finally {
+        setIsLoading(false);
     }
   }
 
@@ -106,7 +116,6 @@ export default function LoginPage() {
         title: 'Login Failed',
         description: error.message,
       });
-    } finally {
       setIsLoading(false);
     }
   };
@@ -123,7 +132,6 @@ export default function LoginPage() {
             title: 'Login Failed',
             description: error.message,
         });
-    } finally {
         setIsLoading(false);
     }
   }
