@@ -1,3 +1,9 @@
+
+"use client"
+
+import { useEffect, useState } from "react"
+import { getFirestore, collection, onSnapshot, query, orderBy, limit } from "firebase/firestore"
+import { app } from "@/lib/firebase"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -15,22 +21,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Crown, Medal, Trophy } from "lucide-react"
+import { Crown, Medal, Trophy, LoaderCircle } from "lucide-react"
 
-const leaderboardData = [
-    { rank: 1, name: "Amelia Earhart", department: "Flying School", score: 5400, avatar: "AE", avatarUrl: "https://placehold.co/40x40.png" },
-    { rank: 2, name: "Charles Lindbergh", department: "Flying School", score: 5150, avatar: "CL", avatarUrl: "https://placehold.co/40x40.png" },
-    { rank: 3, name: "Bessie Coleman", department: "Flying School", score: 4900, avatar: "BC", avatarUrl: "https://placehold.co/40x40.png" },
-    { rank: 4, name: "Wright Brothers", department: "Aircraft Maintenance Engineering", score: 4750, avatar: "WB" },
-    { rank: 5, name: "Chuck Yeager", department: "Air Traffic Control", score: 4600, avatar: "CY" },
-    { rank: 6, name: "Sully Sullenberger", department: "Cabin Crew", score: 4400, avatar: "SS" },
-    { rank: 7, name: "John Glenn", department: "Prospective Student", score: 4200, avatar: "JG" },
-    { rank: 8, name: "Alan Shepard", department: "Flying School", score: 4100, avatar: "AS" },
-    { rank: 9, name: "Neil Armstrong", department: "Flying School", score: 4050, avatar: "NA" },
-    { rank: 10, name: "Buzz Aldrin", department: "Flying School", score: 3900, avatar: "BA" },
-];
+type LeaderboardUser = {
+    id: string;
+    rank: number;
+    name: string;
+    department: string;
+    score: number;
+    avatar: string;
+    avatarUrl?: string;
+}
 
-const TopPlayerCard = ({ player, rank }: { player: typeof leaderboardData[0], rank: number }) => {
+const TopPlayerCard = ({ player, rank }: { player: LeaderboardUser, rank: number }) => {
     const rankColors = ["text-yellow-400", "text-gray-400", "text-orange-400"];
     const rankIcons = [
         <Crown key="1" className={`h-8 w-8 ${rankColors[0]}`} />,
@@ -53,6 +56,36 @@ const TopPlayerCard = ({ player, rank }: { player: typeof leaderboardData[0], ra
 
 
 export default function LeaderboardPage() {
+  const [leaderboardData, setLeaderboardData] = useState<LeaderboardUser[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const db = getFirestore(app);
+    const usersQuery = query(collection(db, "users"), orderBy("leaderboardScore", "desc"), limit(50));
+    
+    const unsub = onSnapshot(usersQuery, (snapshot) => {
+        const usersData: LeaderboardUser[] = snapshot.docs.map((doc, index) => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                rank: index + 1,
+                name: data.displayName || 'Unnamed User',
+                department: data.department || 'N/A',
+                score: data.leaderboardScore || 0,
+                avatar: (data.displayName || 'U').split(' ').map((n: string) => n[0]).join(''),
+            };
+        });
+        setLeaderboardData(usersData);
+        setIsLoading(false);
+    }, (error) => {
+        console.error("Error fetching leaderboard data:", error);
+        setIsLoading(false);
+    });
+
+    return () => unsub();
+  }, [])
+
+
   const topThree = leaderboardData.slice(0, 3);
   const restOfLeaderboard = leaderboardData.slice(3);
 
@@ -62,51 +95,65 @@ export default function LeaderboardPage() {
             <h1 className="text-3xl font-bold md:text-4xl font-headline">Leaderboard</h1>
             <p className="text-muted-foreground">See who is at the top of the aviation game.</p>
         </div>
+        
+        {isLoading ? (
+            <div className="flex justify-center items-center h-48">
+                <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+            </div>
+        ) : leaderboardData.length === 0 ? (
+            <Card>
+                <CardContent className="p-12 text-center text-muted-foreground">
+                    The leaderboard is empty. Compete in exams to get your name on the board!
+                </CardContent>
+            </Card>
+        ) : (
+            <>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    {topThree.map((player, index) => (
+                        <TopPlayerCard key={player.id} player={player} rank={index + 1} />
+                    ))}
+                </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            {topThree.map((player, index) => (
-                <TopPlayerCard key={player.rank} player={player} rank={index + 1} />
-            ))}
-        </div>
-
-        <Card>
-            <CardHeader>
-                <CardTitle>Full Rankings</CardTitle>
-                <CardDescription>The complete list of student rankings.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead className="w-[80px]">Rank</TableHead>
-                            <TableHead>Student</TableHead>
-                            <TableHead>Department</TableHead>
-                            <TableHead className="text-right">Score</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {restOfLeaderboard.map((player) => (
-                        <TableRow key={player.rank}>
-                            <TableCell className="font-bold text-lg text-primary">{player.rank}</TableCell>
-                            <TableCell>
-                                <div className="flex items-center gap-3">
-                                    <Avatar className="h-9 w-9">
-                                        <AvatarImage src={player.avatarUrl} alt={player.name} data-ai-hint="pilot avatar" />
-                                        <AvatarFallback>{player.avatar}</AvatarFallback>
-                                    </Avatar>
-                                    <span className="font-medium">{player.name}</span>
-                                </div>
-                            </TableCell>
-                            <TableCell>
-                                <Badge variant="outline">{player.department}</Badge>
-                            </TableCell>
-                            <TableCell className="text-right font-bold">{player.score.toLocaleString()} pts</TableCell>
-                        </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </CardContent>
-        </Card>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Full Rankings</CardTitle>
+                        <CardDescription>The complete list of student rankings.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="w-[80px]">Rank</TableHead>
+                                    <TableHead>Student</TableHead>
+                                    <TableHead>Department</TableHead>
+                                    <TableHead className="text-right">Score</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {restOfLeaderboard.map((player) => (
+                                <TableRow key={player.id}>
+                                    <TableCell className="font-bold text-lg text-primary">{player.rank}</TableCell>
+                                    <TableCell>
+                                        <div className="flex items-center gap-3">
+                                            <Avatar className="h-9 w-9">
+                                                <AvatarImage src={player.avatarUrl} alt={player.name} data-ai-hint="pilot avatar" />
+                                                <AvatarFallback>{player.avatar}</AvatarFallback>
+                                            </Avatar>
+                                            <span className="font-medium">{player.name}</span>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Badge variant="outline">{player.department}</Badge>
+                                    </TableCell>
+                                    <TableCell className="text-right font-bold">{player.score.toLocaleString()} pts</TableCell>
+                                </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+            </>
+        )}
     </div>
   )
 }

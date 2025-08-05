@@ -14,6 +14,5 @@ import '@/ai/flows/customize-ai-tutor.ts';
 import '@/ai/flows/add-question.ts';
 import '@/ai/flows/create-exam.ts';
 import '@/ai/flows/create-exam-from-source.ts';
-import '@/ai/flows/seed-database.ts';
 import '@/ai/flows/create-exam-from-bank.ts';
 import '@/ai/flows/manage-subjects.ts';

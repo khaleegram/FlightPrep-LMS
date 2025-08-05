@@ -1,3 +1,6 @@
+
+"use client"
+
 import {
   Card,
   CardContent,
@@ -17,52 +20,16 @@ import { Button } from "@/components/ui/button"
 import { ProgressChart } from "@/components/progress-chart"
 import { Badge } from "@/components/ui/badge"
 import { Award, BookOpen, Clock, Target } from "lucide-react"
+import Link from "next/link"
 
 const progressStats = [
-  { title: "Exams Taken", value: "12", icon: BookOpen },
-  { title: "Hours Studied", value: "48", icon: Clock },
-  { title: "Average Score", value: "82%", icon: Target },
-  { title: "Best Subject", value: "Aircraft Systems", icon: Award },
+  { title: "Exams Taken", value: "0", icon: BookOpen },
+  { title: "Hours Studied", value: "0", icon: Clock },
+  { title: "Average Score", value: "N/A", icon: Target },
+  { title: "Best Subject", value: "N/A", icon: Award },
 ];
 
-const examHistory = [
-  {
-    exam: "PPL Air Law Mock Exam",
-    date: "2024-07-15",
-    score: 92,
-    status: "Passed",
-  },
-  {
-    exam: "CPL Meteorology Practice Test",
-    date: "2024-07-12",
-    score: 78,
-    status: "Passed",
-  },
-  {
-    exam: "EASA Part-66 Module 1",
-    date: "2024-07-10",
-    score: 65,
-    status: "Failed",
-  },
-  {
-    exam: "Navigation General",
-    date: "2024-07-05",
-    score: 85,
-    status: "Passed",
-  },
-  {
-    exam: "Instruments & Electronics",
-    date: "2024-07-01",
-    score: 75,
-    status: "Passed",
-  },
-   {
-    exam: "Aircraft Systems Mock",
-    date: "2024-06-28",
-    score: 95,
-    status: "Passed",
-  },
-];
+const examHistory: any[] = [];
 
 export default function MyProgressPage() {
   return (
@@ -104,21 +71,32 @@ export default function MyProgressPage() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {examHistory.map((item) => (
-                        <TableRow key={item.exam}>
-                            <TableCell>
-                                <div className="font-medium">{item.exam}</div>
-                                <div className="text-sm text-muted-foreground">{item.date}</div>
-                            </TableCell>
-                            <TableCell className="text-center font-bold">{item.score}%</TableCell>
-                            <TableCell className="text-center">
-                                <Badge variant={item.status === 'Passed' ? 'default': 'destructive'}>{item.status}</Badge>
-                            </TableCell>
-                            <TableCell className="text-right">
-                                <Button variant="outline" size="sm">Review</Button>
-                            </TableCell>
-                        </TableRow>
-                        ))}
+                        {examHistory.length === 0 ? (
+                            <TableRow>
+                                <TableCell colSpan={4} className="h-24 text-center">
+                                    You haven't taken any exams yet.
+                                    <Button asChild variant="link" className="p-1">
+                                      <Link href="/student/mock-exams">Take one now!</Link>
+                                    </Button>
+                                </TableCell>
+                            </TableRow>
+                        ) : (
+                            examHistory.map((item) => (
+                            <TableRow key={item.exam}>
+                                <TableCell>
+                                    <div className="font-medium">{item.exam}</div>
+                                    <div className="text-sm text-muted-foreground">{item.date}</div>
+                                </TableCell>
+                                <TableCell className="text-center font-bold">{item.score}%</TableCell>
+                                <TableCell className="text-center">
+                                    <Badge variant={item.status === 'Passed' ? 'default': 'destructive'}>{item.status}</Badge>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    <Button variant="outline" size="sm">Review</Button>
+                                </TableCell>
+                            </TableRow>
+                            ))
+                        )}
                     </TableBody>
                 </Table>
             </CardContent>
