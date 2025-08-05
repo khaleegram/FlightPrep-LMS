@@ -53,6 +53,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 const departments = ['Flying School', 'Aircraft Maintenance Engineering', 'Air Traffic Control', 'Cabin Crew', 'Prospective Students'] as const;
 
+const subjects = [
+    'Air Law', 
+    'Meteorology', 
+    'Navigation', 
+    'Aircraft Systems', 
+    'Principles of Flight', 
+    'Human Performance',
+    'Instruments',
+] as const;
+
 type Question = {
     id: string;
     questionText: string;
@@ -63,7 +73,7 @@ type Question = {
 
 const formSchema = z.object({
     department: z.string({ required_error: "Department is required." }),
-    subject: z.string().min(3, "Subject is required."),
+    subject: z.string({ required_error: "Subject is required." }),
     questionText: z.string().min(10, "Question must be at least 10 characters long."),
     options: z.array(z.object({ value: z.string().min(1, "Option cannot be empty.") })).min(2, "At least two options are required."),
     correctAnswer: z.string({ required_error: "You must select a correct answer." }),
@@ -78,7 +88,7 @@ const CreateQuestionDialog = ({ onQuestionAdded }: { onQuestionAdded: () => void
         resolver: zodResolver(formSchema),
         defaultValues: {
             department: undefined,
-            subject: "",
+            subject: undefined,
             questionText: "",
             options: [{ value: "" }, { value: "" }],
             correctAnswer: undefined,
@@ -163,7 +173,20 @@ const CreateQuestionDialog = ({ onQuestionAdded }: { onQuestionAdded: () => void
                             </div>
                             <div className="grid gap-2">
                                 <Label htmlFor="subject">Subject</Label>
-                                <Input id="subject" {...form.register("subject")} placeholder="e.g., Air Law" />
+                                <Controller
+                                    control={form.control}
+                                    name="subject"
+                                    render={({ field }) => (
+                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <SelectTrigger id="subject">
+                                                <SelectValue placeholder="Select a subject..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {subjects.map(sub => <SelectItem key={sub} value={sub}>{sub}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                    )}
+                                />
                                 {form.formState.errors.subject && <p className="text-sm text-destructive">{form.formState.errors.subject.message}</p>}
                             </div>
                         </div>
