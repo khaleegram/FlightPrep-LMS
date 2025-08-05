@@ -1,0 +1,65 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAdmin() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin';
+    }
+
+    function isStudent() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Student';
+    }
+    
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    // Users:
+    // - Anyone can create their own user document (on signup).
+    // - Authenticated users can read public profiles (for leaderboards).
+    // - Users can only update their own document.
+    // - Admins can read/write any user document.
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Departments & Subjects:
+    // - Readable by any authenticated user.
+    // - Writable only by admins.
+    match /departments/{departmentId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+    match /subjects/{subjectId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
+    // Questions & Exams:
+    // - Readable by any authenticated user (students need to take exams).
+    // - Writable only by admins.
+    match /questions/{questionId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+    match /exams/{examId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+    
+    // Exam Results:
+    // - Students can create their own exam results.
+    // - Students can read their own results.
+    // - Admins can read all results for analytics.
+    match /examResults/{resultId} {
+      allow read: if isAdmin() || request.auth.uid == resource.data.userId;
+      allow create: if request.auth.uid == request.resource.data.userId;
+      allow update, delete: if isAdmin();
+    }
+  }
+}

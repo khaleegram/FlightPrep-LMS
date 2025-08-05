@@ -12,19 +12,8 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-
-
-// Common auth policy for all analytics flows
-const isAdminPolicy = {
-    policy: async (auth: any, input: any) => {
-      if (!auth) {
-        throw new Error("Authentication required.");
-      }
-      if (!auth.custom?.isAdmin) {
-        throw new Error("You must be an admin to perform this action.");
-      }
-    },
-};
+import { adminDb } from '@/lib/firebase-admin';
+import { startOfMonth, subMonths, format } from 'date-fns';
 
 // KPI Data Flow
 const KpiDataSchema = z.object({
@@ -45,15 +34,24 @@ const getKpiDataFlow = ai.defineFlow(
       name: 'getKpiDataFlow',
       inputSchema: z.void(),
       outputSchema: KpiDataOutputSchema,
-      auth: isAdminPolicy,
     },
     async () => {
-        // In a real app, this data would be fetched and calculated from a database.
+        const usersSnapshot = await adminDb.collection('users').where('role', '==', 'Student').get();
+        const questionsSnapshot = await adminDb.collection('questions').get();
+        const examsCompletedSnapshot = await adminDb.collection('examResults').get();
+
+        const totalStudents = usersSnapshot.size;
+        const totalQuestions = questionsSnapshot.size;
+        const totalExamsCompleted = examsCompletedSnapshot.size;
+
+        const allScores = examsCompletedSnapshot.docs.map(doc => doc.data().score);
+        const avgScore = allScores.length > 0 ? allScores.reduce((a, b) => a + b, 0) / allScores.length : 0;
+
         return [
-            { title: "Exams Completed", value: "1,402", change: "+15% this month", icon: "BadgeCheck" },
-            { title: "Active Students", value: "327", change: "24 active today", icon: "Users" },
-            { title: "Avg. Score", value: "81%", change: "+1.2% this month", icon: "Target" },
-            { title: "Questions Answered", value: "70,100", change: "+10k this month", icon: "BookOpen" },
+            { title: "Exams Completed", value: totalExamsCompleted.toLocaleString(), change: "", icon: "BadgeCheck" },
+            { title: "Active Students", value: totalStudents.toLocaleString(), change: "", icon: "Users" },
+            { title: "Avg. Score", value: `${avgScore.toFixed(0)}%`, change: "", icon: "Target" },
+            { title: "Questions in Bank", value: totalQuestions.toLocaleString(), change: "", icon: "BookOpen" },
         ];
     }
 );
@@ -77,17 +75,44 @@ const getPassFailDataFlow = ai.defineFlow(
       name: 'getPassFailDataFlow',
       inputSchema: z.void(),
       outputSchema: PassFailDataOutputSchema,
-      auth: isAdminPolicy,
     },
     async () => {
-        return [
-            { month: "Jan", passed: 88, failed: 12 },
-            { month: "Feb", passed: 92, failed: 8 },
-            { month: "Mar", passed: 95, failed: 5 },
-            { month: "Apr", passed: 90, failed: 10 },
-            { month: "May", passed: 85, failed: 15 },
-            { month: "Jun", passed: 91, failed: 9 },
-        ];
+        const sixMonthsAgo = startOfMonth(subMonths(new Date(), 5));
+        const snapshot = await adminDb.collection('examResults')
+            .where('submittedAt', '>=', sixMonthsAgo.toISOString())
+            .get();
+
+        const monthlyData: {[key: string]: { passed: number, failed: number }} = {};
+
+        snapshot.docs.forEach(doc => {
+            const data = doc.data();
+            const date = new Date(data.submittedAt);
+            const month = format(date, 'MMM');
+            
+            if (!monthlyData[month]) {
+                monthlyData[month] = { passed: 0, failed: 0 };
+            }
+
+            if (data.score >= 75) {
+                monthlyData[month].passed++;
+            } else {
+                monthlyData[month].failed++;
+            }
+        });
+
+        // Ensure all last 6 months are present, even if no data
+        for (let i = 5; i >= 0; i--) {
+            const monthName = format(subMonths(new Date(), i), 'MMM');
+            if(!monthlyData[monthName]) {
+                monthlyData[monthName] = { passed: 0, failed: 0 };
+            }
+        }
+
+        return Object.entries(monthlyData).map(([month, data]) => ({
+            month,
+            passed: data.passed,
+            failed: data.failed,
+        }));
     }
 );
 
@@ -108,15 +133,25 @@ const getScoreDistributionDataFlow = ai.defineFlow(
       name: 'getScoreDistributionDataFlow',
       inputSchema: z.void(),
       outputSchema: ScoreDistributionOutputSchema,
-      auth: isAdminPolicy,
     },
     async () => {
-        return [
-            { range: "0-50%", count: 18 },
-            { range: "51-70%", count: 45 },
-            { range: "71-90%", count: 120 },
-            { range: "91-100%", count: 98 },
-        ];
+        const snapshot = await adminDb.collection('examResults').get();
+        const distribution = {
+            "0-50%": 0,
+            "51-70%": 0,
+            "71-90%": 0,
+            "91-100%": 0,
+        };
+
+        snapshot.docs.forEach(doc => {
+            const score = doc.data().score;
+            if (score <= 50) distribution["0-50%"]++;
+            else if (score <= 70) distribution["51-70%"]++;
+            else if (score <= 90) distribution["71-90%"]++;
+            else distribution["91-100%"]++;
+        });
+
+        return Object.entries(distribution).map(([range, count]) => ({ range, count }));
     }
 );
 
@@ -137,15 +172,27 @@ const getDifficultSubjectsDataFlow = ai.defineFlow(
       name: 'getDifficultSubjectsDataFlow',
       inputSchema: z.void(),
       outputSchema: DifficultSubjectsOutputSchema,
-      auth: isAdminPolicy,
     },
     async () => {
-        return [
-            { subject: "Meteorology", avgScore: 68 },
-            { subject: "Instruments", avgScore: 71 },
-            { subject: "Nav Aids", avgScore: 74 },
-            { subject: "Air Law", avgScore: 78 },
-            { subject: "Gen Nav", avgScore: 80 },
-        ];
+        const snapshot = await adminDb.collection('examResults').get();
+        const subjectsData: {[key: string]: { totalScore: number, count: number }} = {};
+
+        snapshot.docs.forEach(doc => {
+            const data = doc.data();
+            const subject = data.subject || "General";
+            if (!subjectsData[subject]) {
+                subjectsData[subject] = { totalScore: 0, count: 0 };
+            }
+            subjectsData[subject].totalScore += data.score;
+            subjectsData[subject].count++;
+        });
+
+        return Object.entries(subjectsData)
+            .map(([subject, data]) => ({
+                subject,
+                avgScore: parseFloat((data.totalScore / data.count).toFixed(2)),
+            }))
+            .sort((a, b) => a.avgScore - b.avgScore) // Sort by lowest score first
+            .slice(0, 5); // Return top 5 most difficult
     }
 );

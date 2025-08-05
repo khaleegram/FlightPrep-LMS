@@ -12,18 +12,31 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Link from 'next/link';
 import { generateExamExplanation, GenerateExamExplanationInput } from '@/ai/flows/generate-exam-explanation';
 import { useToast } from '@/hooks/use-toast';
+import { getFirestore, doc, getDoc, collection, getDocs, where, query } from 'firebase/firestore';
+import { app } from '@/lib/firebase';
 
 type Question = {
-  id: number;
+  id: string;
   text: string;
   options: string[];
   correctAnswer: string;
+  subject: string;
 };
 
-type ExamResults = {
-  answers: Record<number, string>;
-  questions: Question[];
+type ExamResult = {
+  answers: Record<string, string>;
+  score: number;
+  examId: string;
+  examTitle: string;
+  submittedAt: string;
+  userId: string;
+  subject: string;
 };
+
+type FullResult = {
+    result: ExamResult;
+    questions: Question[];
+}
 
 const AiExplanation = ({ question, studentAnswer }: { question: Question, studentAnswer: string }) => {
     const [explanation, setExplanation] = useState("");
@@ -37,7 +50,7 @@ const AiExplanation = ({ question, studentAnswer }: { question: Question, studen
                 question: question.text,
                 studentAnswer: studentAnswer || "Not answered",
                 correctAnswer: question.correctAnswer,
-                topic: "Air Law" // This would be dynamic in a real app
+                topic: question.subject || "General Aviation",
             }
             const result = await generateExamExplanation(input);
             setExplanation(result.explanation);
@@ -86,30 +99,65 @@ const AiExplanation = ({ question, studentAnswer }: { question: Question, studen
 export default function ResultsPage() {
   const params = useParams();
   const router = useRouter();
-  const { examId } = params;
-  const [results, setResults] = useState<ExamResults | null>(null);
+  const { examId: resultId } = params; // The ID is now the result document ID
+  const [fullResult, setFullResult] = useState<FullResult | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
-    const savedResults = localStorage.getItem(`exam_results_${examId}`);
-    if (savedResults) {
-      setResults(JSON.parse(savedResults));
-    } else {
-      // Handle case where there are no results, e.g., redirect
-      router.push('/student/dashboard');
-    }
-  }, [examId, router]);
+    if (!resultId) return;
+    const db = getFirestore(app);
 
-  if (!results) {
+    const fetchResults = async () => {
+        try {
+            const resultRef = doc(db, 'examResults', resultId as string);
+            const resultSnap = await getDoc(resultRef);
+
+            if (!resultSnap.exists()) {
+                toast({ variant: 'destructive', title: 'Error', description: 'Exam result not found.' });
+                router.push('/student/dashboard');
+                return;
+            }
+
+            const resultData = resultSnap.data() as ExamResult;
+            const examRef = doc(db, 'exams', resultData.examId);
+            const examSnap = await getDoc(examRef);
+            const questionIds = examSnap.data()?.questionIds || [];
+            
+            const questions: Question[] = [];
+             if(questionIds.length > 0) {
+                 const questionsQuery = query(collection(db, 'questions'), where('__name__', 'in', questionIds));
+                 const questionsSnap = await getDocs(questionsQuery);
+                 questionsSnap.forEach(doc => {
+                     questions.push({ id: doc.id, ...doc.data() } as Question);
+                 });
+            }
+            
+            setFullResult({ result: resultData, questions });
+
+        } catch (error) {
+            console.error("Error fetching results: ", error);
+             toast({ variant: 'destructive', title: 'Error', description: 'Could not load exam results.' });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    
+    fetchResults();
+
+  }, [resultId, router, toast]);
+
+
+  if (isLoading || !fullResult) {
     return (
-        <div className="flex justify-center items-center h-64">
-            <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+        <div className="flex h-full w-full items-center justify-center">
+            <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
         </div>
     );
   }
 
-  const { answers, questions } = results;
-  const correctAnswersCount = questions.filter(q => answers[q.id] === q.correctAnswer).length;
-  const score = Math.round((correctAnswersCount / questions.length) * 100);
+  const { result, questions } = fullResult;
+  const { answers, score } = result;
   const isPassed = score >= 75;
 
   return (
@@ -117,15 +165,15 @@ export default function ResultsPage() {
       <Card>
         <CardHeader className="text-center">
           <CardTitle className="text-4xl font-bold">Exam Results</CardTitle>
-          <CardDescription>You {isPassed ? "Passed" : "Failed"}</CardDescription>
+          <CardDescription>{result.examTitle}</CardDescription>
           <div className="flex items-center justify-center gap-4 pt-4">
             <div className="text-6xl font-black" style={{ color: isPassed ? 'hsl(var(--primary))' : 'hsl(var(--destructive))' }}>
                 {score}%
             </div>
           </div>
           <Progress value={score} className="w-full mt-4" />
-          <p className="text-muted-foreground mt-2">
-            You answered {correctAnswersCount} out of {questions.length} questions correctly.
+           <p className="text-muted-foreground mt-2">
+            You {isPassed ? "Passed" : "Failed"}
           </p>
         </CardHeader>
         <CardContent>
