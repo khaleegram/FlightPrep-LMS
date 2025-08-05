@@ -63,18 +63,34 @@ export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  const handleAdminLogin = async (user: User) => {
+  const handleRoleBasedLogin = async (user: User, role: 'student' | 'admin') => {
     const idTokenResult = await user.getIdTokenResult(true); // Force refresh
-    if (idTokenResult.claims.isAdmin) {
-      toast({ title: 'Success', description: 'Admin logged in successfully!' });
-      router.push('/admin/dashboard');
-    } else {
-      await auth.signOut(); // Sign out non-admin user
-      toast({
-        variant: 'destructive',
-        title: 'Access Denied',
-        description: 'You do not have permission to access the admin panel.',
-      });
+    
+    if (role === 'admin') {
+        if (idTokenResult.claims.isAdmin) {
+          toast({ title: 'Success', description: 'Admin logged in successfully!' });
+          router.push('/admin/dashboard');
+        } else {
+          await auth.signOut(); // Sign out non-admin user
+          toast({
+            variant: 'destructive',
+            title: 'Access Denied',
+            description: 'You do not have permission to access the admin panel.',
+          });
+        }
+    } else { // role === 'student'
+        // A user is considered a student if they are not an admin or explicitly have the student claim.
+        if (!idTokenResult.claims.isAdmin || idTokenResult.claims.isStudent) {
+            toast({ title: 'Success', description: 'Logged in successfully!' });
+            router.push('/student/dashboard');
+        } else {
+             await auth.signOut(); 
+            toast({
+                variant: 'destructive',
+                title: 'Login Error',
+                description: 'This account is not configured for student access.',
+            });
+        }
     }
   }
 
@@ -83,12 +99,7 @@ export default function LoginPage() {
     setIsLoading(true);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      if (role === 'admin') {
-        await handleAdminLogin(userCredential.user);
-      } else {
-        toast({ title: 'Success', description: 'Logged in successfully!' });
-        router.push('/student/dashboard');
-      }
+      await handleRoleBasedLogin(userCredential.user, role);
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -105,12 +116,7 @@ export default function LoginPage() {
     const authProvider = provider === 'google' ? googleProvider : appleProvider;
     try {
         const userCredential = await signInWithPopup(auth, authProvider);
-        if (role === 'admin') {
-          await handleAdminLogin(userCredential.user);
-        } else {
-          toast({ title: 'Success', description: 'Logged in successfully!' });
-          router.push('/student/dashboard');
-        }
+        await handleRoleBasedLogin(userCredential.user, role);
     } catch (error: any) {
         toast({
             variant: 'destructive',
@@ -284,5 +290,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
-    

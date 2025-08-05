@@ -57,6 +57,17 @@ const listUsersFlow = ai.defineFlow(
     name: 'listUsersFlow',
     inputSchema: z.void(),
     outputSchema: ListUsersOutputSchema,
+    auth: {
+        // This ensures that only users with an 'isAdmin' custom claim can run this flow.
+        policy: async (auth, input) => {
+          if (!auth) {
+            throw new Error("Authentication required.");
+          }
+          if (!auth.custom?.isAdmin) {
+            throw new Error("You must be an admin to perform this action.");
+          }
+        },
+    }
   },
   async () => {
     try {

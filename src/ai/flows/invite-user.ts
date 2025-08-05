@@ -36,15 +36,14 @@ const inviteUserFlow = ai.defineFlow(
     outputSchema: InviteUserOutputSchema,
     auth: {
         // This ensures that only users with an 'isAdmin' custom claim can run this flow.
-        // Uncomment this section once you have an admin user.
-        // policy: async (auth, input) => {
-        //   if (!auth) {
-        //     throw new Error("Authentication required.");
-        //   }
-        //   if (!auth.custom?.isAdmin) {
-        //     throw new Error("You must be an admin to perform this action.");
-        //   }
-        // },
+        policy: async (auth, input) => {
+          if (!auth) {
+            throw new Error("Authentication required.");
+          }
+          if (!auth.custom?.isAdmin) {
+            throw new Error("You must be an admin to perform this action.");
+          }
+        },
     }
   },
   async (input) => {
