@@ -8,3 +8,4 @@ import '@/ai/flows/generate-exam-explanation.ts';
 import '@/ai/flows/generate-tutor-response.ts';
 import '@/ai/flows/list-users.ts';
 import '@/ai/flows/invite-user.ts';
+import '@/ai/flows/get-analytics-data.ts';
