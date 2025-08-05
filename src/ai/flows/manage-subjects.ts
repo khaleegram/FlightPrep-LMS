@@ -54,7 +54,7 @@ const addSubjectFlow = ai.defineFlow(
       console.error('Error adding subject:', error);
       return {
         success: false,
-        message: 'An unexpected error occurred while adding the subject.',
+        message: error.message || 'An unexpected error occurred while adding the subject.',
       };
     }
   }
@@ -102,7 +102,7 @@ const listSubjectsFlow = ai.defineFlow(
         name: doc.data().name,
         department: doc.data().department,
       }));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error listing subjects:', error);
       return [];
     }
@@ -148,7 +148,7 @@ const addDepartmentFlow = ai.defineFlow(
       console.error('Error adding department:', error);
       return {
         success: false,
-        message: 'An unexpected error occurred while adding the department.',
+        message: error.message || 'An unexpected error occurred while adding the department.',
       };
     }
   }
@@ -183,7 +183,7 @@ const listDepartmentsFlow = ai.defineFlow(
         id: doc.id,
         name: doc.data().name,
       }));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error listing departments:', error);
       return [];
     }

@@ -18,7 +18,6 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { addSubject, listSubjects, addDepartment, listDepartments } from "@/ai/flows/manage-subjects";
-import type { Subject, Department } from "@/ai/flows/manage-subjects";
 import { LoaderCircle, Library, Building } from "lucide-react";
 
 const addSubjectFormSchema = z.object({
@@ -27,8 +26,19 @@ const addSubjectFormSchema = z.object({
 });
 
 const addDepartmentFormSchema = z.object({
-    name: z.string().min(5, "Department name must be at least 5 characters long."),
+    name: z.string().min(3, "Department name must be at least 3 characters long."),
 });
+
+type Subject = {
+    id: string;
+    name: string;
+    department: string;
+};
+
+type Department = {
+    id: string;
+    name: string;
+};
 
 type GroupedSubjects = {
     [key: string]: Subject[];
@@ -62,7 +72,7 @@ export default function CurriculumPage() {
             setSubjects(subjectList);
             setDepartments(departmentList);
         } catch (error: any) {
-            toast({ variant: "destructive", title: "Error", description: `Could not fetch data: ${error.message}` });
+            toast({ variant: "destructive", title: "Error fetching data", description: error.message });
         } finally {
             setIsLoading(false);
         }
@@ -96,7 +106,7 @@ export default function CurriculumPage() {
                 throw new Error(result.message);
             }
         } catch (error: any) {
-            toast({ variant: "destructive", title: "Failed to add subject", description: error.message || "An unexpected error occurred." });
+            toast({ variant: "destructive", title: "Failed to add subject", description: error.message });
         } finally {
             setIsSubmittingSubject(false);
         }
@@ -114,7 +124,7 @@ export default function CurriculumPage() {
                 throw new Error(result.message);
             }
         } catch (error: any) {
-             toast({ variant: "destructive", title: "Failed to add department", description: error.message || "An unexpected error occurred." });
+             toast({ variant: "destructive", title: "Failed to add department", description: error.message });
         } finally {
             setIsSubmittingDept(false);
         }
