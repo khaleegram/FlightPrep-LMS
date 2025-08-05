@@ -29,7 +29,7 @@ export default function StudentDashboard() {
     <div className="flex flex-col gap-4 md:gap-8">
         <div>
             <h1 className="text-2xl font-semibold md:text-3xl font-headline">Welcome Back, Student!</h1>
-            <p className="text-muted-foreground">Ready to conquer the skies? Let&apos;s get started.</p>
+            <p className="text-muted-foreground">Ready to conquer the skies? Let's get started.</p>
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
             <div className="lg:col-span-4">
