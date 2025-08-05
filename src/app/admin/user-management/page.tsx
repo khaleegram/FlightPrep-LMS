@@ -8,6 +8,7 @@ import {
     CardDescription,
     CardHeader,
     CardTitle,
+    CardFooter,
   } from "@/components/ui/card"
 import {
     Table,
@@ -25,16 +26,90 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+  } from "@/components/ui/alert-dialog"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { MoreHorizontal, LoaderCircle } from "lucide-react"
+import { MoreHorizontal, LoaderCircle, Trash } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { listUsers, ListUsersOutput } from "@/ai/flows/list-users"
 import { inviteUser, InviteUserInput } from "@/ai/flows/invite-user"
+import { deleteAllUsers } from "@/ai/flows/delete-all-users"
+import { useAuth } from "@/hooks/use-auth"
+
+
+const CleanupCard = ({ onCleanupDone }: { onCleanupDone: () => void }) => {
+    const { user } = useAuth();
+    const { toast } = useToast();
+    const [isCleaning, setIsCleaning] = useState(false);
+
+    const handleCleanup = async () => {
+        if (!user || !user.email) {
+            toast({ variant: "destructive", title: "Error", description: "Admin user not found." });
+            return;
+        }
+        setIsCleaning(true);
+        try {
+            const result = await deleteAllUsers({ emailToKeep: user.email });
+            if (result.success) {
+                toast({ title: "Cleanup Successful", description: result.message });
+                onCleanupDone();
+            } else {
+                throw new Error(result.message);
+            }
+        } catch (error: any) {
+            toast({ variant: "destructive", title: "Cleanup Failed", description: error.message });
+        } finally {
+            setIsCleaning(false);
+        }
+    };
+
+    return (
+        <Card className="bg-destructive/10 border-destructive">
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Trash className="h-5 w-5"/> Database Cleanup</CardTitle>
+                <CardDescription className="text-destructive/80">
+                    It looks like there might be old user data. You can clean up the database, which will delete all users except for your own admin account.
+                </CardDescription>
+            </CardHeader>
+            <CardFooter>
+                 <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button variant="destructive" disabled={isCleaning}>
+                            {isCleaning && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                            Delete All Other Users
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete all user accounts and their associated data, except for your currently logged-in admin account.
+                        </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleCleanup}>Continue</AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            </CardFooter>
+        </Card>
+    )
+}
 
 export default function UserManagementPage() {
     const [users, setUsers] = useState<ListUsersOutput>([]);
@@ -111,7 +186,7 @@ export default function UserManagementPage() {
         </div>
   
         <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
-            <div className="md:col-span-1">
+            <div className="flex flex-col gap-8 md:col-span-1">
                 <Card>
                     <form onSubmit={handleInvite}>
                         <CardHeader>
@@ -153,6 +228,7 @@ export default function UserManagementPage() {
                         </CardContent>
                     </form>
                 </Card>
+                <CleanupCard onCleanupDone={fetchUsers} />
             </div>
             <div className="md:col-span-2">
                 <Card>
@@ -227,5 +303,3 @@ export default function UserManagementPage() {
       </div>
     );
   }
-
-    
