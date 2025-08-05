@@ -38,7 +38,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     { href: "#", icon: BookCopy, label: "Question Bank" },
     { href: "#", icon: FileText, label: "Exam Management" },
     { href: "/admin/user-management", icon: Users, label: "User Management" },
-    { href: "#", icon: Bot, label: "AI Customization" },
+    { href: "/admin/ai-customization", icon: Bot, label: "AI Customization" },
     { href: "/admin/analytics", icon: LineChart, label: "Analytics" },
     { href: "#", icon: Settings, label: "Settings" },
   ];
@@ -50,7 +50,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
           key={item.label}
           href={item.href}
           className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-all ${
-            pathname.startsWith(item.href)
+            pathname.startsWith(item.href) && item.href !== '#'
               ? 'bg-sidebar-accent text-sidebar-accent-foreground'
               : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
           }`}

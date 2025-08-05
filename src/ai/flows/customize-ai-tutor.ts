@@ -1,4 +1,3 @@
-// src/ai/flows/customize-ai-tutor.ts
 'use server';
 
 /**
@@ -14,8 +13,8 @@ import {z} from 'genkit';
 
 const CustomizeAITutorInputSchema = z.object({
   department: z.enum(['Flying School', 'Aircraft Maintenance Engineering', 'Air Traffic Control', 'Cabin Crew', 'Prospective Students']).describe('The department to customize the AI tutor for.'),
-  customPrompt: z.string().describe('The custom prompt to use for the AI tutor.'),
-  knowledgeBaseUpdate: z.string().describe('Updates to the AI tutor knowledge base.'),
+  customPrompt: z.string().optional().describe('The custom prompt to use for the AI tutor.'),
+  knowledgeBaseUpdate: z.string().optional().describe('Updates to the AI tutor knowledge base.'),
 });
 export type CustomizeAITutorInput = z.infer<typeof CustomizeAITutorInputSchema>;
 
@@ -29,27 +28,33 @@ export async function customizeAITutor(input: CustomizeAITutorInput): Promise<Cu
   return customizeAITutorFlow(input);
 }
 
-const customizeAITutorPrompt = ai.definePrompt({
-  name: 'customizeAITutorPrompt',
-  input: {schema: CustomizeAITutorInputSchema},
-  output: {schema: CustomizeAITutorOutputSchema},
-  prompt: `You are an AI assistant that helps customize AI tutors for different departments in an aviation college.
-
-  The admin wants to customize the AI tutor for the following department: {{{department}}}.
-  They want to use the following custom prompt: {{{customPrompt}}}.
-  They also want to update the knowledge base with the following information: {{{knowledgeBaseUpdate}}}.
-
-  Confirm that customization was successful and return a success boolean with a message.`,
-});
-
 const customizeAITutorFlow = ai.defineFlow(
   {
     name: 'customizeAITutorFlow',
     inputSchema: CustomizeAITutorInputSchema,
     outputSchema: CustomizeAITutorOutputSchema,
+    auth: {
+      policy: async (auth, input) => {
+        if (!auth) {
+          throw new Error("Authentication required.");
+        }
+        if (!auth.custom?.isAdmin) {
+          throw new Error("You must be an admin to perform this action.");
+        }
+      },
+    },
   },
-  async input => {
-    const {output} = await customizeAITutorPrompt(input);
-    return output!;
+  async (input) => {
+    // In a real application, you would save this customization to a database (e.g., Firestore).
+    // The key would likely be the department name.
+    console.log(`Customizing AI Tutor for ${input.department}`);
+    console.log(`Custom Prompt: ${input.customPrompt}`);
+    console.log(`Knowledge Base Update: ${input.knowledgeBaseUpdate}`);
+    
+    // For now, we just simulate success.
+    return {
+      success: true,
+      message: `AI Tutor for ${input.department} has been updated successfully.`,
+    };
   }
 );
