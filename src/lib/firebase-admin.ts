@@ -9,7 +9,9 @@ if (!admin.apps.length) {
     // For local development, you must set the GOOGLE_APPLICATION_CREDENTIALS
     // environment variable to point to your service account key file.
     try {
-        admin.initializeApp();
+        admin.initializeApp({
+            projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
+        });
     } catch (error: any) {
         console.error('Firebase admin initialization error:', error);
         throw new Error(

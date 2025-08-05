@@ -278,7 +278,7 @@ export default function LoginPage() {
       </div>
       <div className="hidden bg-muted lg:block xl:col-span-3">
         <Image
-          src="https://placehold.co/1200x900.png"
+          src="/images/avaition.png"
           alt="Aviation cockpit"
           width="1920"
           height="1080"
