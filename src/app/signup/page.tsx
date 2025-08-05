@@ -123,7 +123,7 @@ export default function SignupPage() {
     <div className="w-full lg:grid lg:min-h-screen lg:grid-cols-2 xl:grid-cols-5">
       <div className="hidden bg-muted lg:block xl:col-span-3">
         <Image
-          src="https://placehold.co/1200x900.png"
+          src="/images/avaition.png"
           alt="Airplane wing"
           width="1920"
           height="1080"

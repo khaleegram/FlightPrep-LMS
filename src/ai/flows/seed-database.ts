@@ -37,6 +37,24 @@ const generateQuestionsPrompt = ai.definePrompt({
 });
 
 
+const UserSchema = z.object({
+    displayName: z.string().describe('The full name of the user, often a famous aviator.'),
+    email: z.string().email().describe('The user\'s email address, formatted as "firstname.lastname@example.com".'),
+    department: z.enum(['Flying School', 'Aircraft Maintenance Engineering', 'Air Traffic Control', 'Cabin Crew', 'Prospective Students']).describe('The department the user belongs to.'),
+    leaderboardScore: z.number().int().min(3000).max(6000).describe('A realistic leaderboard score for the user.'),
+});
+
+const UsersToGenerateSchema = z.object({
+    users: z.array(UserSchema).length(10),
+});
+
+const generateUsersPrompt = ai.definePrompt({
+    name: 'generateUsersPrompt',
+    output: { schema: UsersToGenerateSchema },
+    prompt: `Generate a list of 10 realistic sample users for an aviation training platform. Include famous aviators and pilots. Ensure the data matches the required schema, including a unique email, department, and a plausible leaderboard score for each.`
+});
+
+
 const seedDatabaseFlow = ai.defineFlow(
   {
     name: 'seedDatabaseFlow',
@@ -67,19 +85,12 @@ const seedDatabaseFlow = ai.defineFlow(
       console.log(`${questions.length} questions have been added to Firestore.`);
 
       // 2. Seed Users
-      console.log('Creating users...');
-      const usersToCreate = [
-        { email: 'amelia.earhart@example.com', displayName: 'Amelia Earhart', department: 'Flying School', leaderboardScore: 5400 },
-        { email: 'charles.lindbergh@example.com', displayName: 'Charles Lindbergh', department: 'Flying School', leaderboardScore: 5150 },
-        { email: 'bessie.coleman@example.com', displayName: 'Bessie Coleman', department: 'Flying School', leaderboardScore: 4900 },
-        { email: 'chuck.yeager@example.com', displayName: 'Chuck Yeager', department: 'Air Traffic Control', leaderboardScore: 4600 },
-        { email: 'sully.sullenberger@example.com', displayName: 'Sully Sullenberger', department: 'Cabin Crew', leaderboardScore: 4400 },
-        { email: 'orville.wright@example.com', displayName: 'Orville Wright', department: 'Aircraft Maintenance Engineering', leaderboardScore: 4750 },
-        { email: 'alan.shepard@example.com', displayName: 'Alan Shepard', department: 'Flying School', leaderboardScore: 4100 },
-        { email: 'neil.armstrong@example.com', displayName: 'Neil Armstrong', department: 'Flying School', leaderboardScore: 4050 },
-        { email: 'buzz.aldrin@example.com', displayName: 'Buzz Aldrin', department: 'Flying School', leaderboardScore: 3900 },
-        { email: 'john.glenn@example.com', displayName: 'John Glenn', department: 'Prospective Student', leaderboardScore: 4200 },
-      ];
+      console.log('Generating users...');
+      const { output: usersOutput } = await generateUsersPrompt();
+      if (!usersOutput) {
+          throw new Error("Failed to generate users from AI.");
+      }
+      const usersToCreate = usersOutput.users;
       
       const userCreationPromises = usersToCreate.map(async (u) => {
         try {
@@ -100,9 +111,11 @@ const seedDatabaseFlow = ai.defineFlow(
             return { email: u.email, status: 'success' };
         } catch(error: any) {
             if (error.code === 'auth/email-already-exists') {
+                console.log(`User ${u.email} already exists. Skipping.`);
                 return { email: u.email, status: 'exists' };
             }
-            throw error; // Rethrow other errors
+            // Re-throwing other errors to be caught by the main catch block
+            throw error;
         }
       });
 
@@ -112,7 +125,7 @@ const seedDatabaseFlow = ai.defineFlow(
 
       return {
         success: true,
-        message: 'Database seeded successfully.',
+        message: 'Database seeded successfully with AI-generated data.',
         usersCreated: successfulUsers,
         questionsCreated: questions.length,
       };
