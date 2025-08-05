@@ -39,16 +39,20 @@ import {
     DropdownMenuLabel,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { MoreHorizontal, LoaderCircle, FileUp, Sparkles, BookCheck, FilePlus2 } from "lucide-react"
+import { MoreHorizontal, LoaderCircle, FileUp, Sparkles, BookCheck, FilePlus2, ListPlus } from "lucide-react"
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { createExamFromSource, CreateExamFromSourceInput } from "@/ai/flows/create-exam-from-source";
-import { createExam, CreateExamInput } from "@/ai/flows/create-exam";
+import { createExam as createExamFromBankWithAI } from "@/ai/flows/create-exam-from-bank";
+import { createExam as createExamManually, CreateExamInput } from "@/ai/flows/create-exam";
 import { getFirestore, collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { app } from '@/lib/firebase';
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
 
 type Exam = {
     id: string;
@@ -59,6 +63,12 @@ type Exam = {
     createdAt: string;
 }
 
+type Question = {
+    id: string;
+    questionText: string;
+    subject: string;
+};
+
 const createFromSourceFormSchema = z.object({
     title: z.string().min(5, "Title must be at least 5 characters long."),
     description: z.string().min(10, "Description must be at least 10 characters long."),
@@ -68,12 +78,19 @@ const createFromSourceFormSchema = z.object({
     sourceFile: z.instanceof(FileList).optional(),
 });
 
-const createFromBankFormSchema = z.object({
+const createFromBankAIFormSchema = z.object({
     title: z.string().min(5, "Title must be at least 5 characters long."),
     description: z.string().min(10, "Description must be at least 10 characters long."),
     duration: z.coerce.number().int().positive("Duration must be a positive number."),
     prompt: z.string().min(20, "Prompt must be detailed enough for the AI to understand."),
     questionCount: z.coerce.number().int().min(1, "Must have at least 1 question."),
+});
+
+const createManuallyFormSchema = z.object({
+    title: z.string().min(5, "Title must be at least 5 characters long."),
+    description: z.string().min(10, "Description must be at least 10 characters long."),
+    duration: z.coerce.number().int().positive("Duration must be a positive number."),
+    questionIds: z.array(z.string()).min(1, "You must select at least one question."),
 });
 
 const fileToDataUri = (file: File): Promise<string> => {
@@ -132,7 +149,7 @@ const CreateExamFromSourceDialog = ({ onExamCreated }: { onExamCreated: () => vo
             <DialogTrigger asChild>
                 <Button variant="outline">
                     <FilePlus2 className="mr-2 h-4 w-4" />
-                    Create from Source
+                    AI-Generate from Source
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-3xl">
@@ -160,22 +177,20 @@ const CreateExamFromSourceDialog = ({ onExamCreated }: { onExamCreated: () => vo
     )
 }
 
-
-const CreateExamFromBankDialog = ({ onExamCreated }: { onExamCreated: () => void }) => {
+const CreateExamFromBankAIDialog = ({ onExamCreated }: { onExamCreated: () => void }) => {
     const { toast } = useToast();
     const [open, setOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const form = useForm<z.infer<typeof createFromBankFormSchema>>({
-        resolver: zodResolver(createFromBankFormSchema),
+    const form = useForm<z.infer<typeof createFromBankAIFormSchema>>({
+        resolver: zodResolver(createFromBankAIFormSchema),
         defaultValues: { title: "", description: "", duration: 60, prompt: "", questionCount: 10, },
     });
 
-    const onSubmit = async (values: z.infer<typeof createFromBankFormSchema>) => {
+    const onSubmit = async (values: z.infer<typeof createFromBankAIFormSchema>) => {
         setIsSubmitting(true);
         try {
-            const input: CreateExamInput = { ...values };
-            const result = await createExam(input);
+            const result = await createExamFromBankWithAI(values);
 
             if (result.success) {
                 toast({ title: "Exam Assembled by AI", description: result.message });
@@ -195,9 +210,9 @@ const CreateExamFromBankDialog = ({ onExamCreated }: { onExamCreated: () => void
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-                <Button>
-                    <BookCheck className="mr-2 h-4 w-4" />
-                    Create from Bank
+                <Button variant="outline">
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    AI-Assemble from Bank
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-2xl">
@@ -224,33 +239,136 @@ const CreateExamFromBankDialog = ({ onExamCreated }: { onExamCreated: () => void
     )
 }
 
+const CreateExamManuallyDialog = ({ onExamCreated, allQuestions }: { onExamCreated: () => void, allQuestions: Question[] }) => {
+    const { toast } = useToast();
+    const [open, setOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const form = useForm<z.infer<typeof createManuallyFormSchema>>({
+        resolver: zodResolver(createManuallyFormSchema),
+        defaultValues: { title: "", description: "", duration: 60, questionIds: [] },
+    });
+
+    const selectedIds = form.watch("questionIds");
+
+    const onSubmit = async (values: z.infer<typeof createManuallyFormSchema>) => {
+        setIsSubmitting(true);
+        try {
+            const input: CreateExamInput = { ...values };
+            const result = await createExamManually(input);
+
+            if (result.success) {
+                toast({ title: "Exam Created", description: result.message });
+                onExamCreated();
+                form.reset();
+                setOpen(false);
+            } else {
+                throw new Error(result.message);
+            }
+        } catch (error: any) {
+            toast({ variant: "destructive", title: "Failed to create exam", description: error.message || "An unexpected error occurred." });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button>
+                    <ListPlus className="mr-2 h-4 w-4" />
+                    Create Manually
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-4xl">
+                <form onSubmit={form.handleSubmit(onSubmit)}>
+                    <DialogHeader>
+                        <DialogTitle>Create Exam Manually</DialogTitle>
+                        <DialogDescription>Build an exam by hand-picking questions from the bank. ({selectedIds.length} selected)</DialogDescription>
+                    </DialogHeader>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 py-8">
+                        <div className="space-y-4 col-span-1 md:col-span-2">
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="grid gap-2"><Label htmlFor="title-manual">Exam Title</Label><Input id="title-manual" {...form.register("title")} placeholder="e.g., PPL Final Practice Exam" />{form.formState.errors.title && <p className="text-sm text-destructive">{form.formState.errors.title.message}</p>}</div>
+                                <div className="grid gap-2"><Label htmlFor="duration-manual">Duration (minutes)</Label><Input id="duration-manual" type="number" {...form.register("duration")} />{form.formState.errors.duration && <p className="text-sm text-destructive">{form.formState.errors.duration.message}</p>}</div>
+                            </div>
+                            <div className="grid gap-2"><Label htmlFor="description-manual">Short Description</Label><Textarea id="description-manual" {...form.register("description")} placeholder="A brief summary of the exam's content." rows={2}/>{form.formState.errors.description && <p className="text-sm text-destructive">{form.formState.errors.description.message}</p>}</div>
+                        </div>
+
+                        <div className="col-span-1 md:col-span-2">
+                            <Label>Select Questions</Label>
+                            <Controller
+                                name="questionIds"
+                                control={form.control}
+                                render={({ field }) => (
+                                    <ScrollArea className="h-72 mt-2 w-full rounded-md border">
+                                        <Table>
+                                             <TableHeader>
+                                                <TableRow>
+                                                    <TableHead className="w-[50px]"></TableHead>
+                                                    <TableHead>Question</TableHead>
+                                                    <TableHead>Subject</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {allQuestions.map(q => (
+                                                    <TableRow key={q.id}>
+                                                        <TableCell><Checkbox checked={field.value?.includes(q.id)} onCheckedChange={(checked) => {
+                                                            return checked ? field.onChange([...field.value, q.id]) : field.onChange(field.value?.filter((value) => value !== q.id))
+                                                        }} /></TableCell>
+                                                        <TableCell className="font-medium">{q.questionText}</TableCell>
+                                                        <TableCell><Badge variant="outline">{q.subject}</Badge></TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </ScrollArea>
+                                )}
+                            />
+                            {form.formState.errors.questionIds && <p className="text-sm text-destructive mt-2">{form.formState.errors.questionIds.message}</p>}
+                        </div>
+
+                    </div>
+                    <DialogFooter><DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose><Button type="submit" disabled={isSubmitting}>{isSubmitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />} {isSubmitting ? "Saving Exam..." : "Save Exam"}</Button></DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
 export default function ExamManagementPage() {
     const [exams, setExams] = useState<Exam[]>([]);
+    const [allQuestions, setAllQuestions] = useState<Question[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
 
     useEffect(() => {
         const db = getFirestore(app);
-        const q = query(collection(db, "exams"), orderBy("createdAt", "desc"));
+        const examsQuery = query(collection(db, "exams"), orderBy("createdAt", "desc"));
+        const questionsQuery = query(collection(db, "questions"), orderBy("createdAt", "desc"));
 
-        const unsubscribe = onSnapshot(q, (querySnapshot) => {
-            const examsData: Exam[] = [];
-            querySnapshot.forEach((doc) => {
-                examsData.push({ id: doc.id, ...doc.data() } as Exam);
-            });
+        const unsubExams = onSnapshot(examsQuery, (snapshot) => {
+            const examsData: Exam[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Exam));
             setExams(examsData);
             setIsLoading(false);
         }, (error) => {
             console.error("Error fetching exams: ", error);
-            toast({
-                variant: "destructive",
-                title: "Error",
-                description: "Could not fetch exams from the database.",
-            });
+            toast({ variant: "destructive", title: "Error", description: "Could not fetch exams." });
             setIsLoading(false);
         });
+        
+        const unsubQuestions = onSnapshot(questionsQuery, (snapshot) => {
+            const questionsData: Question[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Question));
+            setAllQuestions(questionsData);
+        }, (error) => {
+            console.error("Error fetching questions: ", error);
+            toast({ variant: "destructive", title: "Error", description: "Could not fetch questions for manual creation." });
+        });
 
-        return () => unsubscribe();
+        return () => {
+            unsubExams();
+            unsubQuestions();
+        };
     }, [toast]);
     
     return (
@@ -261,8 +379,9 @@ export default function ExamManagementPage() {
                     <p className="text-muted-foreground">Create, view, and manage mock exams using AI-powered tools.</p>
                 </div>
                 <div className="flex items-center gap-2">
+                    <CreateExamManuallyDialog onExamCreated={() => {}} allQuestions={allQuestions} />
+                    <CreateExamFromBankAIDialog onExamCreated={() => {}} />
                     <CreateExamFromSourceDialog onExamCreated={() => {}} />
-                    <CreateExamFromBankDialog onExamCreated={() => {}} />
                 </div>
             </div>
 
@@ -291,7 +410,7 @@ export default function ExamManagementPage() {
                                 {exams.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={5} className="text-center h-24">
-                                            No exams found. Use one of the AI agents to create one.
+                                            No exams found. Use one of the creation methods to get started.
                                         </TableCell>
                                     </TableRow>
                                 ) : (
