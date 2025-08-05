@@ -27,7 +27,7 @@ const ExamGenerationSchema = z.object({
 });
 
 // Define the main input schema for the flow
-export const CreateExamFromSourceInputSchema = z.object({
+const CreateExamFromSourceInputSchema = z.object({
   title: z.string().describe('The title of the exam.'),
   description: z.string().describe('A brief description of the exam.'),
   duration: z.number().int().positive().describe('The duration of the exam in minutes.'),
@@ -38,7 +38,7 @@ export const CreateExamFromSourceInputSchema = z.object({
 export type CreateExamFromSourceInput = z.infer<typeof CreateExamFromSourceInputSchema>;
 
 // Define the output schema for the flow
-export const CreateExamFromSourceOutputSchema = z.object({
+const CreateExamFromSourceOutputSchema = z.object({
   success: z.boolean().describe('Whether the exam was created successfully.'),
   message: z.string().describe('A message indicating the result.'),
   examId: z.string().optional().describe('The ID of the newly created exam.'),
