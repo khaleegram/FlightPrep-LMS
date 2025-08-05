@@ -20,14 +20,12 @@ const CreateExamInputSchema = z.object({
   prompt: z.string().describe('A natural language prompt describing the desired exam content.'),
   questionCount: z.number().int().positive().describe('The number of questions to include in the exam.'),
 });
-type CreateExamInput = z.infer<typeof CreateExamInputSchema>;
 
 const CreateExamOutputSchema = z.object({
   success: z.boolean().describe('Whether the exam was created successfully.'),
   message: z.string().describe('A message indicating the result.'),
   examId: z.string().optional().describe('The ID of the newly created exam.'),
 });
-type CreateExamOutput = z.infer<typeof CreateExamOutputSchema>;
 
 // Define the schema for the AI's output, which is a list of selected question IDs
 const ExamQuestionSelectionSchema = z.object({
@@ -56,7 +54,7 @@ Analyze the prompt and select the best question IDs. Return ONLY the JSON object
 `,
 });
 
-export async function createExam(input: CreateExamInput): Promise<CreateExamOutput> {
+export async function createExam(input: z.infer<typeof CreateExamInputSchema>) {
   return createExamFlow(input);
 }
 
@@ -65,16 +63,6 @@ const createExamFlow = ai.defineFlow(
     name: 'createExamFromBankFlow',
     inputSchema: CreateExamInputSchema,
     outputSchema: CreateExamOutputSchema,
-    auth: {
-      policy: async (auth, input) => {
-        if (!auth) {
-          throw new Error("Authentication required.");
-        }
-        if (!auth.custom?.isAdmin) {
-          throw new Error("You must be an admin to perform this action.");
-        }
-      },
-    },
   },
   async (input) => {
     try {

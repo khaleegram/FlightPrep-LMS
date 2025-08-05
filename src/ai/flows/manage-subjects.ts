@@ -15,18 +15,6 @@ import { z } from 'genkit';
 import { adminDb } from '@/lib/firebase-admin';
 import type admin from 'firebase-admin';
 
-// Common auth policy for all management flows
-const isAdminPolicy = {
-    policy: async (auth: any, input: any) => {
-      if (!auth) {
-        throw new Error("Authentication required.");
-      }
-      if (!auth.custom?.isAdmin) {
-        throw new Error("You must be an admin to perform this action.");
-      }
-    },
-};
-
 // Add Subject Flow
 const AddSubjectInputSchema = z.object({
   name: z.string().min(3, 'Subject name must be at least 3 characters long.'),
@@ -48,7 +36,6 @@ const addSubjectFlow = ai.defineFlow(
     name: 'addSubjectFlow',
     inputSchema: AddSubjectInputSchema,
     outputSchema: AddSubjectOutputSchema,
-    auth: isAdminPolicy,
   },
   async (input) => {
     try {
@@ -95,7 +82,6 @@ const listSubjectsFlow = ai.defineFlow(
     name: 'listSubjectsFlow',
     inputSchema: ListSubjectsInputSchema,
     outputSchema: ListSubjectsOutputSchema,
-    auth: isAdminPolicy,
   },
   async (input) => {
     try {
@@ -144,7 +130,6 @@ const addDepartmentFlow = ai.defineFlow(
     name: 'addDepartmentFlow',
     inputSchema: AddDepartmentInputSchema,
     outputSchema: AddDepartmentOutputSchema,
-    auth: isAdminPolicy,
   },
   async (input) => {
     try {
@@ -187,7 +172,6 @@ const listDepartmentsFlow = ai.defineFlow(
     name: 'listDepartmentsFlow',
     inputSchema: z.void(),
     outputSchema: ListDepartmentsOutputSchema,
-    auth: isAdminPolicy,
   },
   async () => {
     try {
@@ -205,3 +189,4 @@ const listDepartmentsFlow = ai.defineFlow(
     }
   }
 );
+

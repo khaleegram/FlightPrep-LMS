@@ -19,16 +19,14 @@ const CreateExamInputSchema = z.object({
   duration: z.number().int().positive().describe('The duration of the exam in minutes.'),
   questionIds: z.array(z.string()).min(1, 'At least one question must be selected.').describe('An array of question IDs to include in the exam.'),
 });
-export type CreateExamInput = z.infer<typeof CreateExamInputSchema>;
 
 const CreateExamOutputSchema = z.object({
   success: z.boolean().describe('Whether the exam was created successfully.'),
   message: z.string().describe('A message indicating the result.'),
   examId: z.string().optional().describe('The ID of the newly created exam.'),
 });
-export type CreateExamOutput = z.infer<typeof CreateExamOutputSchema>;
 
-export async function createExam(input: CreateExamInput): Promise<CreateExamOutput> {
+export async function createExam(input: z.infer<typeof CreateExamInputSchema>) {
   return createExamFlow(input);
 }
 
@@ -37,16 +35,6 @@ const createExamFlow = ai.defineFlow(
     name: 'createExamFlow',
     inputSchema: CreateExamInputSchema,
     outputSchema: CreateExamOutputSchema,
-    auth: {
-      policy: async (auth, input) => {
-        if (!auth) {
-          throw new Error("Authentication required.");
-        }
-        if (!auth.custom?.isAdmin) {
-          throw new Error("You must be an admin to perform this action.");
-        }
-      },
-    },
   },
   async (input) => {
     try {

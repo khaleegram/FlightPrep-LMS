@@ -35,7 +35,6 @@ const CreateExamFromSourceInputSchema = z.object({
   difficulty: z.enum(['Easy', 'Medium', 'Hard']).describe('The desired difficulty level for the questions.'),
   sourceDataUri: z.string().optional().describe('A document (PDF or TXT) encoded as a data URI containing source material for question generation or parsing.'),
 });
-export type CreateExamFromSourceInput = z.infer<typeof CreateExamFromSourceInputSchema>;
 
 // Define the output schema for the flow
 const CreateExamFromSourceOutputSchema = z.object({
@@ -44,7 +43,6 @@ const CreateExamFromSourceOutputSchema = z.object({
   examId: z.string().optional().describe('The ID of the newly created exam.'),
   questionsCreated: z.number().optional().describe('The number of new questions added to the bank.'),
 });
-export type CreateExamFromSourceOutput = z.infer<typeof CreateExamFromSourceOutputSchema>;
 
 
 const examGeneratorPrompt = ai.definePrompt({
@@ -75,7 +73,7 @@ No source material provided. Generate questions based on general aviation knowle
 `,
 });
 
-export async function createExamFromSource(input: CreateExamFromSourceInput): Promise<CreateExamFromSourceOutput> {
+export async function createExamFromSource(input: z.infer<typeof CreateExamFromSourceInputSchema>) {
   return createExamFromSourceFlow(input);
 }
 
@@ -84,12 +82,6 @@ const createExamFromSourceFlow = ai.defineFlow(
     name: 'createExamFromSourceFlow',
     inputSchema: CreateExamFromSourceInputSchema,
     outputSchema: CreateExamFromSourceOutputSchema,
-    auth: {
-      policy: async (auth, input) => {
-        if (!auth) throw new Error("Authentication required.");
-        if (!auth.custom?.isAdmin) throw new Error("You must be an admin to perform this action.");
-      },
-    },
   },
   async (input) => {
     try {

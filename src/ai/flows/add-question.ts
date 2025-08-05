@@ -20,16 +20,14 @@ const AddQuestionInputSchema = z.object({
   department: z.string().describe('The department the question belongs to (e.g., Flying School).'),
   subject: z.string().describe('The subject or topic the question belongs to (e.g., Air Law, Meteorology).'),
 });
-type AddQuestionInput = z.infer<typeof AddQuestionInputSchema>;
 
 const AddQuestionOutputSchema = z.object({
   success: z.boolean().describe('Whether the question was added successfully.'),
   message: z.string().describe('A message indicating the result.'),
   questionId: z.string().optional().describe('The ID of the newly created question.'),
 });
-type AddQuestionOutput = z.infer<typeof AddQuestionOutputSchema>;
 
-export async function addQuestion(input: AddQuestionInput): Promise<AddQuestionOutput> {
+export async function addQuestion(input: z.infer<typeof AddQuestionInputSchema>) {
   return addQuestionFlow(input);
 }
 
@@ -38,16 +36,6 @@ const addQuestionFlow = ai.defineFlow(
     name: 'addQuestionFlow',
     inputSchema: AddQuestionInputSchema,
     outputSchema: AddQuestionOutputSchema,
-    auth: {
-      policy: async (auth, input) => {
-        if (!auth) {
-          throw new Error("Authentication required.");
-        }
-        if (!auth.custom?.isAdmin) {
-          throw new Error("You must be an admin to perform this action.");
-        }
-      },
-    },
   },
   async (input) => {
     try {
