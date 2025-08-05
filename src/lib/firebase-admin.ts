@@ -13,7 +13,7 @@ if (!admin.apps.length) {
         if (error.code === 'app/invalid-credential') {
             throw new Error(
                 'Firebase admin initialization failed. ' +
-                'Ensure FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, and NEXT_PUBLIC_FIREBASE_PROJECT_ID are set correctly in your .env file for local development.'
+                'Ensure your service account credentials are set correctly for the environment.'
             );
         }
         throw error;
