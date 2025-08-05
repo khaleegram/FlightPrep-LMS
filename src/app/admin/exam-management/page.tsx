@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -39,43 +39,37 @@ import {
     DropdownMenuLabel,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { MoreHorizontal, PlusCircle, LoaderCircle, ChevronsUpDown, Check, X } from "lucide-react"
+import { MoreHorizontal, PlusCircle, LoaderCircle } from "lucide-react"
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast";
 import { createExam, CreateExamInput } from "@/ai/flows/create-exam";
+import { getFirestore, collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { app } from '@/lib/firebase';
 
-const MOCK_QUESTIONS = [
-    { id: '1', text: "What is the minimum visibility for VFR in Class G airspace above 1,200 feet AGL?", subject: "Air Law", value: "1", label: "What is the minimum visibility for VFR..."},
-    { id: '2', text: "What does 'ISA' stand for in meteorology?", subject: "Meteorology", value: "2", label: "What does 'ISA' stand for..."},
-    { id: '3', text: "Describe the function of a magneto in a piston engine.", subject: "Aircraft Systems", value: "3", label: "Describe the function of a magneto..."},
-    { id: '4', text: "What are the four forces acting on an aircraft in flight?", subject: "Principles of Flight", value: "4", label: "What are the four forces..."},
-    { id: '5', text: "What is the purpose of a rudder on an airplane?", subject: "Principles of Flight", value: "5", label: "What is the purpose of a rudder..."},
-    { id: '6', text: "Define 'Absolute Altitude'.", subject: "Navigation", value: "6", label: "Define 'Absolute Altitude'."},
-];
-
-const MOCK_EXAMS = [
-    { id: '1', title: "PPL Air Law Mock Exam", questions: 50, duration: 60, subject: "Air Law"},
-    { id: '2', title: "CPL Meteorology Practice Test", questions: 40, duration: 45, subject: "Meteorology"},
-    { id: '3', title: "EASA Part-66 Module 1", questions: 100, duration: 120, subject: "Mathematics"},
-];
+type Exam = {
+    id: string;
+    title: string;
+    description: string;
+    questionCount: number;
+    duration: number;
+    createdAt: string;
+}
 
 const formSchema = z.object({
     title: z.string().min(5, "Title must be at least 5 characters long."),
     description: z.string().min(10, "Description must be at least 10 characters long."),
     duration: z.coerce.number().int().positive("Duration must be a positive number."),
-    questionIds: z.array(z.string()).min(1, "You must select at least one question."),
+    questionCount: z.coerce.number().int().min(5, "Exam must have at least 5 questions."),
+    prompt: z.string().min(20, "Prompt must be detailed enough for the AI to understand."),
 });
 
 const CreateExamDialog = ({ onExamCreated }: { onExamCreated: () => void }) => {
     const { toast } = useToast();
     const [open, setOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [popoverOpen, setPopoverOpen] = useState(false);
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -83,11 +77,10 @@ const CreateExamDialog = ({ onExamCreated }: { onExamCreated: () => void }) => {
             title: "",
             description: "",
             duration: 60,
-            questionIds: [],
+            questionCount: 10,
+            prompt: "",
         },
     });
-
-    const selectedQuestions = form.watch("questionIds");
 
     const onSubmit = async (values: z.infer<typeof formSchema>) => {
         setIsSubmitting(true);
@@ -97,7 +90,7 @@ const CreateExamDialog = ({ onExamCreated }: { onExamCreated: () => void }) => {
 
             if (result.success) {
                 toast({
-                    title: "Exam Created",
+                    title: "Exam Created by AI",
                     description: result.message,
                 });
                 onExamCreated();
@@ -122,27 +115,29 @@ const CreateExamDialog = ({ onExamCreated }: { onExamCreated: () => void }) => {
             <DialogTrigger asChild>
                 <Button>
                     <PlusCircle className="mr-2 h-4 w-4" />
-                    Create New Exam
+                    Create New Exam with AI
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-3xl">
                 <form onSubmit={form.handleSubmit(onSubmit)}>
                     <DialogHeader>
-                        <DialogTitle>Create New Exam</DialogTitle>
+                        <DialogTitle>Create New Exam with AI</DialogTitle>
                         <DialogDescription>
-                            Build a new mock exam by selecting questions from the bank.
+                            Describe the exam you want to create, and our AI agent will select the most relevant questions for you from the question bank.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-6 py-8">
-                        <div className="grid gap-2">
-                            <Label htmlFor="title">Exam Title</Label>
-                            <Input id="title" {...form.register("title")} placeholder="e.g., PPL Final Exam" />
-                             {form.formState.errors.title && <p className="text-sm text-destructive">{form.formState.errors.title.message}</p>}
-                        </div>
-                         <div className="grid gap-2">
-                            <Label htmlFor="description">Description</Label>
-                            <Textarea id="description" {...form.register("description")} placeholder="A brief description of the exam's content and purpose." />
-                             {form.formState.errors.description && <p className="text-sm text-destructive">{form.formState.errors.description.message}</p>}
+                        <div className="grid grid-cols-2 gap-4">
+                             <div className="grid gap-2">
+                                <Label htmlFor="title">Exam Title</Label>
+                                <Input id="title" {...form.register("title")} placeholder="e.g., PPL Air Law Final Exam" />
+                                {form.formState.errors.title && <p className="text-sm text-destructive">{form.formState.errors.title.message}</p>}
+                            </div>
+                             <div className="grid gap-2">
+                                <Label htmlFor="description">Short Description</Label>
+                                <Input id="description" {...form.register("description")} placeholder="A brief summary of the exam's content." />
+                                {form.formState.errors.description && <p className="text-sm text-destructive">{form.formState.errors.description.message}</p>}
+                            </div>
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="grid gap-2">
@@ -150,72 +145,22 @@ const CreateExamDialog = ({ onExamCreated }: { onExamCreated: () => void }) => {
                                 <Input id="duration" type="number" {...form.register("duration")} />
                                 {form.formState.errors.duration && <p className="text-sm text-destructive">{form.formState.errors.duration.message}</p>}
                             </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="questionCount">Number of Questions</Label>
+                                <Input id="questionCount" type="number" {...form.register("questionCount")} />
+                                {form.formState.errors.questionCount && <p className="text-sm text-destructive">{form.formState.errors.questionCount.message}</p>}
+                            </div>
                         </div>
 
                         <div className="grid gap-2">
-                            <Label>Questions</Label>
-                            <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-                                <PopoverTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        role="combobox"
-                                        className="w-full justify-between"
-                                    >
-                                        {selectedQuestions.length > 0
-                                            ? `${selectedQuestions.length} question(s) selected`
-                                            : "Select questions..."}
-                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                                    <Command>
-                                        <CommandInput placeholder="Search questions..." />
-                                        <CommandList>
-                                            <CommandEmpty>No questions found.</CommandEmpty>
-                                            <CommandGroup>
-                                                {MOCK_QUESTIONS.map((question) => (
-                                                    <CommandItem
-                                                        key={question.value}
-                                                        value={question.label}
-                                                        onSelect={() => {
-                                                            const currentIds = form.getValues("questionIds");
-                                                            const newIds = currentIds.includes(question.id)
-                                                                ? currentIds.filter(id => id !== question.id)
-                                                                : [...currentIds, question.id];
-                                                            form.setValue("questionIds", newIds, { shouldValidate: true });
-                                                        }}
-                                                    >
-                                                        <Check
-                                                            className={`mr-2 h-4 w-4 ${selectedQuestions.includes(question.id) ? "opacity-100" : "opacity-0"}`}
-                                                        />
-                                                        {question.label}
-                                                    </CommandItem>
-                                                ))}
-                                            </CommandGroup>
-                                        </CommandList>
-                                    </Command>
-                                </PopoverContent>
-                            </Popover>
-                             {form.formState.errors.questionIds && <p className="text-sm text-destructive">{form.formState.errors.questionIds.message}</p>}
-
-                             {selectedQuestions.length > 0 && (
-                                <div className="p-2 border rounded-md max-h-40 overflow-y-auto">
-                                    <div className="grid gap-1">
-                                        {selectedQuestions.map(id => {
-                                            const q = MOCK_QUESTIONS.find(mq => mq.id === id);
-                                            return (
-                                                <Badge key={id} variant="secondary" className="flex justify-between items-center">
-                                                    <span className="truncate">{q?.label}</span>
-                                                    <button type="button" onClick={() => form.setValue("questionIds", selectedQuestions.filter(qid => qid !== id))}>
-                                                        <X className="h-3 w-3 ml-2" />
-                                                    </button>
-                                                </Badge>
-                                            )
-                                        })}
-                                    </div>
-                                </div>
-                            )}
-
+                            <Label htmlFor="prompt">AI Prompt</Label>
+                            <Textarea 
+                                id="prompt" 
+                                {...form.register("prompt")} 
+                                placeholder="Example: Create a CPL-level exam focusing on meteorology, especially interpreting TAF and METAR reports. Include a few questions about high-altitude weather phenomena." 
+                                className="min-h-32"
+                            />
+                            {form.formState.errors.prompt && <p className="text-sm text-destructive">{form.formState.errors.prompt.message}</p>}
                         </div>
                     </div>
                     <DialogFooter>
@@ -224,7 +169,7 @@ const CreateExamDialog = ({ onExamCreated }: { onExamCreated: () => void }) => {
                         </DialogClose>
                         <Button type="submit" disabled={isSubmitting}>
                             {isSubmitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
-                             {isSubmitting ? "Saving..." : "Save Exam"}
+                             {isSubmitting ? "Building Exam..." : "Build Exam with AI"}
                         </Button>
                     </DialogFooter>
                 </form>
@@ -234,12 +179,33 @@ const CreateExamDialog = ({ onExamCreated }: { onExamCreated: () => void }) => {
 }
 
 export default function ExamManagementPage() {
-    const [exams, setExams] = useState(MOCK_EXAMS);
+    const [exams, setExams] = useState<Exam[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const { toast } = useToast();
 
-    const handleExamCreated = () => {
-        // In a real app, re-fetch exams from the backend
-        console.log("Exam created, refreshing list...");
-    }
+    useEffect(() => {
+        const db = getFirestore(app);
+        const q = query(collection(db, "exams"), orderBy("createdAt", "desc"));
+
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+            const examsData: Exam[] = [];
+            querySnapshot.forEach((doc) => {
+                examsData.push({ id: doc.id, ...doc.data() } as Exam);
+            });
+            setExams(examsData);
+            setIsLoading(false);
+        }, (error) => {
+            console.error("Error fetching exams: ", error);
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "Could not fetch exams from the database.",
+            });
+            setIsLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, [toast]);
     
     return (
         <div className="flex flex-col gap-8">
@@ -248,52 +214,65 @@ export default function ExamManagementPage() {
                     <h1 className="text-3xl font-bold md:text-4xl font-headline">Exam Management</h1>
                     <p className="text-muted-foreground">Create, view, and manage mock exams.</p>
                 </div>
-                <CreateExamDialog onExamCreated={handleExamCreated} />
+                <CreateExamDialog onExamCreated={() => {}} />
             </div>
 
             <Card>
                 <CardHeader>
                     <CardTitle>Existing Exams</CardTitle>
-                    <CardDescription>A list of all exams currently available on the platform.</CardDescription>
+                    <CardDescription>A list of all exams currently available on the platform, created by the AI agent.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                     <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Exam Title</TableHead>
-                                <TableHead className="w-[150px]">Subject</TableHead>
-                                <TableHead className="w-[120px] text-center">Questions</TableHead>
-                                <TableHead className="w-[120px] text-center">Duration</TableHead>
-                                <TableHead className="w-[100px] text-right">Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {exams.map(exam => (
-                                <TableRow key={exam.id}>
-                                    <TableCell className="font-medium">{exam.title}</TableCell>
-                                    <TableCell><Badge variant="outline">{exam.subject}</Badge></TableCell>
-                                    <TableCell className="text-center">{exam.questions}</TableCell>
-                                    <TableCell className="text-center">{exam.duration} min</TableCell>
-                                    <TableCell className="text-right">
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" className="h-8 w-8 p-0">
-                                                    <span className="sr-only">Open menu</span>
-                                                    <MoreHorizontal className="h-4 w-4" />
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end">
-                                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                                <DropdownMenuItem>Edit</DropdownMenuItem>
-                                                <DropdownMenuItem>Duplicate</DropdownMenuItem>
-                                                <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-                                    </TableCell>
+                     {isLoading ? (
+                         <div className="flex justify-center items-center h-48">
+                            <LoaderCircle className="h-8 w-8 animate-spin text-primary" />
+                         </div>
+                     ) : (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Exam Title</TableHead>
+                                    <TableHead>Description</TableHead>
+                                    <TableHead className="w-[120px] text-center">Questions</TableHead>
+                                    <TableHead className="w-[120px] text-center">Duration</TableHead>
+                                    <TableHead className="w-[100px] text-right">Actions</TableHead>
                                 </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
+                            </TableHeader>
+                            <TableBody>
+                                {exams.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={5} className="text-center h-24">
+                                            No exams found. Use the AI agent to create one.
+                                        </TableCell>
+                                    </TableRow>
+                                ) : (
+                                    exams.map(exam => (
+                                    <TableRow key={exam.id}>
+                                        <TableCell className="font-medium">{exam.title}</TableCell>
+                                        <TableCell className="text-muted-foreground">{exam.description}</TableCell>
+                                        <TableCell className="text-center">{exam.questionCount}</TableCell>
+                                        <TableCell className="text-center">{exam.duration} min</TableCell>
+                                        <TableCell className="text-right">
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" className="h-8 w-8 p-0">
+                                                        <span className="sr-only">Open menu</span>
+                                                        <MoreHorizontal className="h-4 w-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                                    <DropdownMenuItem>View Details</DropdownMenuItem>
+                                                    <DropdownMenuItem>Duplicate</DropdownMenuItem>
+                                                    <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </TableCell>
+                                    </TableRow>
+                                )))}
+                            </TableBody>
+                        </Table>
+                     )}
                 </CardContent>
             </Card>
         </div>
