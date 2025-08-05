@@ -60,7 +60,7 @@ const addSubjectFlow = ai.defineFlow(
 
       return {
         success: true,
-        message: `Subject "${input.name}" has been added to the ${department} department.`,
+        message: `Subject "${input.name}" has been added to the ${input.department} department.`,
         subjectId: subjectRef.id,
       };
     } catch (error: any) {
