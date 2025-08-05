@@ -49,6 +49,7 @@ import { listUsers, ListUsersOutput } from "@/ai/flows/list-users"
 import { inviteUser, InviteUserInput } from "@/ai/flows/invite-user"
 import { deleteAllUsers, deleteUser } from "@/ai/flows/delete-all-users"
 import { useAuth } from "@/hooks/use-auth"
+import { listDepartments, Department } from "@/ai/flows/manage-subjects"
 
 
 const CleanupCard = ({ onCleanupDone }: { onCleanupDone: () => void }) => {
@@ -118,20 +119,23 @@ export default function UserManagementPage() {
     const [isDeleting, setIsDeleting] = useState(false);
     const [inviteEmail, setInviteEmail] = useState("");
     const [inviteRole, setInviteRole] = useState<"Student" | "Admin" | "">("");
+    const [inviteDepartment, setInviteDepartment] = useState("");
+    const [departments, setDepartments] = useState<Department[]>([]);
     const { toast } = useToast();
     const { user: currentUser } = useAuth();
 
     const fetchUsers = async () => {
         setIsLoading(true);
         try {
-            const userList = await listUsers();
+            const [userList, deptList] = await Promise.all([listUsers(), listDepartments()]);
             setUsers(userList);
+            setDepartments(deptList);
         } catch (error: any) {
-            console.error("Failed to fetch users:", error);
+            console.error("Failed to fetch data:", error);
             toast({
                 variant: "destructive",
                 title: "Error",
-                description: `Could not fetch the user list. ${error.message}`,
+                description: `Could not fetch data. ${error.message}`,
             });
         } finally {
             setIsLoading(false);
@@ -154,17 +158,31 @@ export default function UserManagementPage() {
             return;
         }
 
+        if (inviteRole === "Student" && !inviteDepartment) {
+             toast({
+                variant: "destructive",
+                title: "Missing Information",
+                description: "Please select a department for the student.",
+            });
+            return;
+        }
+
         setIsInviting(true);
         try {
-            const input: InviteUserInput = { email: inviteEmail, role: inviteRole as "Student" | "Admin" };
+            const input: InviteUserInput = { 
+                email: inviteEmail, 
+                role: inviteRole as "Student" | "Admin",
+                department: inviteRole === 'Student' ? inviteDepartment : undefined
+             };
             const result = await inviteUser(input);
             if (result.success) {
                 toast({
                     title: "Invitation Sent",
-                    description: `${inviteEmail} has been invited as a ${inviteRole}.`,
+                    description: result.message,
                 });
                 setInviteEmail("");
                 setInviteRole("");
+                setInviteDepartment("");
                 await fetchUsers(); // Refresh the user list
             } else {
                 throw new Error(result.message);
@@ -244,6 +262,24 @@ export default function UserManagementPage() {
                                     </SelectContent>
                                 </Select>
                            </div>
+                           {inviteRole === 'Student' && (
+                               <div className="grid gap-2">
+                                    <Label htmlFor="department">Department</Label>
+                                    <Select 
+                                        value={inviteDepartment}
+                                        onValueChange={setInviteDepartment}
+                                        disabled={isInviting}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select a department" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {departments.map(dept => <SelectItem key={dept.id} value={dept.name}>{dept.name}</SelectItem>)}
+                                            <SelectItem value="Prospective Student">Prospective Student</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                               </div>
+                           )}
                            <Button type="submit" disabled={isInviting || !inviteEmail || !inviteRole}>
                                 {isInviting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
                                 {isInviting ? "Sending..." : "Send Invitation"}
@@ -344,5 +380,3 @@ export default function UserManagementPage() {
       </div>
     );
   }
-
-    

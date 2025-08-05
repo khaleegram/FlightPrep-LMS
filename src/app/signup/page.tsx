@@ -5,8 +5,9 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { createUserWithEmailAndPassword, updateProfile, signInWithPopup } from "firebase/auth";
-import { auth, googleProvider, appleProvider } from "@/lib/firebase";
+import { createUserWithEmailAndPassword, updateProfile, signInWithPopup, getAdditionalUserInfo } from "firebase/auth";
+import { doc, setDoc, getDoc } from "firebase/firestore";
+import { auth, googleProvider, appleProvider, db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,6 +16,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Logo from "@/components/logo";
 import { listDepartments, Department } from "@/ai/flows/manage-subjects";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { LoaderCircle } from "lucide-react";
+
 
 function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
     return (
@@ -65,6 +69,9 @@ export default function SignupPage() {
   const [department, setDepartment] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [socialUser, setSocialUser] = useState<any>(null);
+  const [showDepartmentModal, setShowDepartmentModal] = useState(false);
+  
   const router = useRouter();
   const { toast } = useToast();
 
@@ -73,6 +80,18 @@ export default function SignupPage() {
         console.error("Could not fetch departments for signup form.");
     })
   }, []);
+
+  const createFirestoreUser = async (user: any, departmentName: string, fullNameOverride?: string) => {
+    const userRef = doc(db, 'users', user.uid);
+    await setDoc(userRef, {
+        displayName: fullNameOverride || user.displayName,
+        email: user.email,
+        role: 'Student',
+        department: departmentName,
+        createdAt: new Date().toISOString(),
+        leaderboardScore: 0,
+    });
+  }
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,8 +113,7 @@ export default function SignupPage() {
         displayName: fullName,
       });
 
-      // Here you would typically also save the department to your database (e.g., Firestore)
-      // associated with the user's UID (userCredential.user.uid).
+      await createFirestoreUser(userCredential.user, department, fullName);
 
       toast({ title: 'Success', description: 'Account created successfully!' });
       router.push('/student/dashboard');
@@ -114,128 +132,190 @@ export default function SignupPage() {
     setIsLoading(true);
     const authProvider = provider === 'google' ? googleProvider : appleProvider;
     try {
-        await signInWithPopup(auth, authProvider);
-        // This flow is simplified. In a real app, you'd need a multi-step process
-        // to collect the department info after the OAuth sign-in.
-        toast({ title: 'Success', description: 'Account created successfully!' });
-        router.push('/student/dashboard');
+        const result = await signInWithPopup(auth, authProvider);
+        const isNewUser = getAdditionalUserInfo(result)?.isNewUser;
+        
+        if (isNewUser) {
+            setSocialUser(result.user);
+            setShowDepartmentModal(true);
+        } else {
+             router.push('/student/dashboard');
+        }
+
     } catch (error: any) {
         toast({
             variant: 'destructive',
             title: 'Signup Failed',
             description: error.message,
         });
+        setIsLoading(false);
+    }
+  }
+
+  const handleDepartmentSelection = async () => {
+    if (!department) {
+        toast({ variant: "destructive", title: "Error", description: "Please select a department."});
+        return;
+    }
+    setIsLoading(true);
+    try {
+        await createFirestoreUser(socialUser, department);
+        setShowDepartmentModal(false);
+        toast({ title: 'Welcome!', description: 'Your profile has been set up.' });
+        router.push('/student/dashboard');
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Setup Failed',
+            description: 'Could not save your department. Please try again.',
+        });
     } finally {
         setIsLoading(false);
     }
-    }
+  }
 
   return (
-    <div className="w-full lg:grid lg:min-h-screen lg:grid-cols-2 xl:grid-cols-5">
-      <div className="hidden bg-muted lg:block xl:col-span-3">
-        <Image
-          src="/images/avaition.png"
-          alt="Airplane wing"
-          width="1920"
-          height="1080"
-          className="h-full w-full object-cover"
-          data-ai-hint="airplane wing"
-          priority
-        />
-      </div>
-      <div className="flex items-center justify-center py-12 xl:col-span-2">
-        <div className="mx-auto grid w-[380px] gap-6 p-6">
-          <div className="grid gap-4 text-center">
-            <Logo />
-            <p className="text-balance text-muted-foreground">
-              Join FlightPrep LMS™ to start your aviation training journey.
-            </p>
-          </div>
-          <Card>
-            <CardContent className="grid gap-4 pt-6">
-              <form onSubmit={handleSignup}>
-                <div className="grid gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="full-name">Full Name</Label>
-                    <Input 
-                      id="full-name" 
-                      placeholder="Amelia Earhart" 
-                      required 
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      disabled={isLoading}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="m@example.com"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      disabled={isLoading}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="department">Department</Label>
-                    <Select required onValueChange={setDepartment} disabled={isLoading || departments.length === 0}>
-                      <SelectTrigger id="department">
-                        <SelectValue placeholder="Select your department" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {departments.map(dep => <SelectItem key={dep.id} value={dep.name}>{dep.name}</SelectItem>)}
-                        <SelectItem value="prospective">Prospective Student</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="password">Password</Label>
-                    <Input 
-                      id="password" 
-                      type="password" 
-                      required 
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      disabled={isLoading}
-                    />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? 'Creating Account...' : 'Create an account'}
-                  </Button>
+    <>
+        <Dialog open={showDepartmentModal} onOpenChange={setShowDepartmentModal}>
+            <DialogContent className="sm:max-w-[425px]" onInteractOutside={(e) => e.preventDefault()}>
+                <DialogHeader>
+                    <DialogTitle>One Last Step</DialogTitle>
+                    <DialogDescription>
+                        Please select your department to complete your profile.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="department-modal" className="text-right">
+                        Department
+                        </Label>
+                        <Select required onValueChange={setDepartment} disabled={isLoading || departments.length === 0}>
+                            <SelectTrigger id="department-modal" className="col-span-3">
+                                <SelectValue placeholder="Select your department" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {departments.map(dep => <SelectItem key={dep.id} value={dep.name}>{dep.name}</SelectItem>)}
+                                <SelectItem value="prospective">Prospective Student</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </div>
-              </form>
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-card px-2 text-muted-foreground">
-                    Or continue with
-                    </span>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" className="w-full" onClick={() => handleProviderSignUp('google')} disabled={isLoading}>
-                    <GoogleIcon className="mr-2 h-4 w-4" />
-                    Google
-                </Button>
-                <Button variant="outline" className="w-full" onClick={() => handleProviderSignUp('apple')} disabled={isLoading}>
-                    <AppleIcon className="mr-2 h-4 w-4" />
-                    Apple
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-          <div className="mt-4 text-center text-sm">
-            Already have an account?{" "}
-            <Link href="/" className="underline">
-              Sign in
-            </Link>
-          </div>
+                <DialogFooter>
+                    <Button type="submit" onClick={handleDepartmentSelection} disabled={isLoading}>
+                        {isLoading && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
+                        Save and Continue
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
+
+        <div className="w-full lg:grid lg:min-h-screen lg:grid-cols-2 xl:grid-cols-5">
+        <div className="hidden bg-muted lg:block xl:col-span-3">
+            <Image
+            src="/images/avaition.png"
+            alt="Airplane wing"
+            width="1920"
+            height="1080"
+            className="h-full w-full object-cover"
+            data-ai-hint="airplane wing"
+            priority
+            />
         </div>
-      </div>
-    </div>
+        <div className="flex items-center justify-center py-12 xl:col-span-2">
+            <div className="mx-auto grid w-[380px] gap-6 p-6">
+            <div className="grid gap-4 text-center">
+                <Logo />
+                <p className="text-balance text-muted-foreground">
+                Join FlightPrep LMS™ to start your aviation training journey.
+                </p>
+            </div>
+            <Card>
+                <CardContent className="grid gap-4 pt-6">
+                <form onSubmit={handleSignup}>
+                    <div className="grid gap-4">
+                    <div className="grid gap-2">
+                        <Label htmlFor="full-name">Full Name</Label>
+                        <Input 
+                        id="full-name" 
+                        placeholder="Amelia Earhart" 
+                        required 
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        disabled={isLoading}
+                        />
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="email">Email</Label>
+                        <Input
+                        id="email"
+                        type="email"
+                        placeholder="m@example.com"
+                        required
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        disabled={isLoading}
+                        />
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="department">Department</Label>
+                        <Select required onValueChange={setDepartment} disabled={isLoading || departments.length === 0}>
+                        <SelectTrigger id="department">
+                            <SelectValue placeholder="Select your department" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {departments.map(dep => <SelectItem key={dep.id} value={dep.name}>{dep.name}</SelectItem>)}
+                            <SelectItem value="prospective">Prospective Student</SelectItem>
+                        </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="password">Password</Label>
+                        <Input 
+                        id="password" 
+                        type="password" 
+                        required 
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        disabled={isLoading}
+                        />
+                    </div>
+                    <Button type="submit" className="w-full" disabled={isLoading}>
+                        {isLoading ? 'Creating Account...' : 'Create an account'}
+                    </Button>
+                    </div>
+                </form>
+                <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-card px-2 text-muted-foreground">
+                        Or continue with
+                        </span>
+                    </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                    <Button variant="outline" className="w-full" onClick={() => handleProviderSignUp('google')} disabled={isLoading}>
+                        <GoogleIcon className="mr-2 h-4 w-4" />
+                        Google
+                    </Button>
+                    <Button variant="outline" className="w-full" onClick={() => handleProviderSignUp('apple')} disabled={isLoading}>
+                        <AppleIcon className="mr-2 h-4 w-4" />
+                        Apple
+                    </Button>
+                </div>
+                </CardContent>
+            </Card>
+            <div className="mt-4 text-center text-sm">
+                Already have an account?{" "}
+                <Link href="/" className="underline">
+                Sign in
+                </Link>
+            </div>
+            </div>
+        </div>
+        </div>
+    </>
   )
 }

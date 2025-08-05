@@ -16,6 +16,7 @@ import { adminAuth, adminDb } from '@/lib/firebase-admin';
 const InviteUserInputSchema = z.object({
   email: z.string().email().describe("The new user's email address."),
   role: z.enum(['Admin', 'Student']).describe("The role to assign to the new user."),
+  department: z.string().optional().describe("The department to assign to a new student user.")
 });
 export type InviteUserInput = z.infer<typeof InviteUserInputSchema>;
 
@@ -47,12 +48,12 @@ const inviteUserFlow = ai.defineFlow(
   },
   async (input) => {
     try {
+      // Create the user without a password first
       const userRecord = await adminAuth.createUser({
         email: input.email,
-        password: `temp-password-${Date.now()}`,
-        emailVerified: false, 
+        emailVerified: true, 
         disabled: false,
-        displayName: input.email.split('@')[0], // Use email prefix as initial name
+        displayName: input.email.split('@')[0],
       });
 
       const claims: Record<string, boolean> = {};
@@ -64,21 +65,30 @@ const inviteUserFlow = ai.defineFlow(
       
       await adminAuth.setCustomUserClaims(userRecord.uid, claims);
 
-      // Create a corresponding user document in Firestore
-      await adminDb.collection('users').doc(userRecord.uid).set({
+      const userData: any = {
         displayName: userRecord.displayName,
         email: userRecord.email,
         role: input.role,
         createdAt: new Date().toISOString(),
-        leaderboardScore: 0, // Initialize score
-      });
+        leaderboardScore: 0,
+      };
 
+      if (input.role === 'Student' && input.department) {
+        userData.department = input.department;
+      }
 
-      console.log(`User ${input.email} created with UID ${userRecord.uid} and role ${input.role}`);
+      await adminDb.collection('users').doc(userRecord.uid).set(userData);
+
+      // Generate a password reset link for the new user to set their password
+      const link = await adminAuth.generatePasswordResetLink(input.email);
+      
+      // IMPORTANT: In a production app, you would email this link to the user.
+      // For this prototype, we will log it to the console for the admin to share.
+      console.log(`Password setup link for ${input.email}: ${link}`);
 
       return {
         success: true,
-        message: `User ${input.email} invited successfully as a ${input.role}.`,
+        message: `User ${input.email} invited as ${input.role}. Password setup link logged to console.`,
       };
     } catch (error: any) {
         console.error("Error inviting user:", error);
