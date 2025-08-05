@@ -36,8 +36,12 @@ const determineRole = (user: UserRecord): 'Admin' | 'Student' | 'Unknown' => {
     if (user.customClaims?.isAdmin) {
         return 'Admin';
     }
-    // Checking for isStudent, or defaulting to Student if no admin claim
-    if (user.customClaims?.isStudent || !user.customClaims?.isAdmin) {
+    if (user.customClaims?.isStudent) {
+        return 'Student';
+    }
+    // Default to Student if no specific role is found, as this is the most common case
+    // and new users created via the signup form won't have claims initially.
+    if (!user.customClaims?.isAdmin && !user.customClaims?.isStudent) {
         return 'Student';
     }
     return 'Unknown';

@@ -34,20 +34,28 @@ const inviteUserFlow = ai.defineFlow(
     name: 'inviteUserFlow',
     inputSchema: InviteUserInputSchema,
     outputSchema: InviteUserOutputSchema,
+    auth: {
+        // This ensures that only users with an 'isAdmin' custom claim can run this flow.
+        // Uncomment this section once you have an admin user.
+        // policy: async (auth, input) => {
+        //   if (!auth) {
+        //     throw new Error("Authentication required.");
+        //   }
+        //   if (!auth.custom?.isAdmin) {
+        //     throw new Error("You must be an admin to perform this action.");
+        //   }
+        // },
+    }
   },
   async (input) => {
     try {
-      // 1. Create a new user with the provided email.
-      // A temporary password is required, but the user will likely reset it
-      // or sign in with a provider. You could also implement a passwordless email link.
       const userRecord = await adminAuth.createUser({
         email: input.email,
-        password: `temp-password-${Date.now()}`, // A random temporary password
-        emailVerified: false, // User will need to verify their email
+        password: `temp-password-${Date.now()}`,
+        emailVerified: false, 
         disabled: false,
       });
 
-      // 2. Set a custom claim on that user object to assign their role.
       const claims: Record<string, boolean> = {};
       if (input.role === 'Admin') {
         claims.isAdmin = true;
@@ -57,8 +65,6 @@ const inviteUserFlow = ai.defineFlow(
       
       await adminAuth.setCustomUserClaims(userRecord.uid, claims);
 
-      // In a real app, you would also trigger an email to be sent to the user.
-      // This can be done via another service or a Firebase Extension.
       console.log(`User ${input.email} created with UID ${userRecord.uid} and role ${input.role}`);
 
       return {
