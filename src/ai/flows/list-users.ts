@@ -10,7 +10,7 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import type { UserRecord } from 'firebase-admin/auth';
+import type { UserRecord, ListUsersResult } from 'firebase-admin/auth';
 import { adminAuth } from '@/lib/firebase-admin';
 
 const UserSchema = z.object({
@@ -56,13 +56,23 @@ const listUsersFlow = ai.defineFlow(
   },
   async () => {
     try {
-        const userRecords = await adminAuth.listUsers(100); // Get up to 100 users
-        const users = userRecords.users.map(user => ({
+        let allUsers: UserRecord[] = [];
+        let nextPageToken: string | undefined;
+
+        do {
+            const listUsersResult: ListUsersResult = await adminAuth.listUsers(1000, nextPageToken);
+            allUsers = allUsers.concat(listUsersResult.users);
+            nextPageToken = listUsersResult.pageToken;
+        } while (nextPageToken);
+
+
+        const users = allUsers.map(user => ({
             name: user.displayName || 'Unnamed User',
             email: user.email || 'no-email@example.com',
             role: determineRole(user),
             avatar: getInitials(user.displayName),
         }));
+
         return users;
     } catch (error) {
         console.error('Error listing users:', error);
