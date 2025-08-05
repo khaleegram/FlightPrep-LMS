@@ -116,10 +116,12 @@ const CreateQuestionDialog = ({ onQuestionAdded, lastUsed, setLastUsed }: { onQu
 
     useEffect(() => {
         if (selectedDepartment) {
+            form.resetField("subject");
             fetchSubjects(selectedDepartment);
         } else {
             setAvailableSubjects([]);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedDepartment, fetchSubjects]);
 
     // Pre-fill form if lastUsed values exist
@@ -205,7 +207,6 @@ const CreateQuestionDialog = ({ onQuestionAdded, lastUsed, setLastUsed }: { onQu
                                         <Select 
                                             onValueChange={(value) => {
                                                 field.onChange(value);
-                                                form.resetField("subject");
                                             }}
                                             value={field.value}
                                         >
