@@ -39,14 +39,14 @@ import {
     DropdownMenuLabel,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { MoreHorizontal, PlusCircle, LoaderCircle, FileUp, Sparkles } from "lucide-react"
+import { MoreHorizontal, LoaderCircle, FileUp, Sparkles, BookCheck, FilePlus2 } from "lucide-react"
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { createExamFromSource, CreateExamFromSourceInput } from "@/ai/flows/create-exam-from-source";
+import { createExam, CreateExamInput } from "@/ai/flows/create-exam";
 import { getFirestore, collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { app } from '@/lib/firebase';
 
@@ -59,7 +59,7 @@ type Exam = {
     createdAt: string;
 }
 
-const formSchema = z.object({
+const createFromSourceFormSchema = z.object({
     title: z.string().min(5, "Title must be at least 5 characters long."),
     description: z.string().min(10, "Description must be at least 10 characters long."),
     duration: z.coerce.number().int().positive("Duration must be a positive number."),
@@ -68,6 +68,13 @@ const formSchema = z.object({
     sourceFile: z.instanceof(FileList).optional(),
 });
 
+const createFromBankFormSchema = z.object({
+    title: z.string().min(5, "Title must be at least 5 characters long."),
+    description: z.string().min(10, "Description must be at least 10 characters long."),
+    duration: z.coerce.number().int().positive("Duration must be a positive number."),
+    prompt: z.string().min(20, "Prompt must be detailed enough for the AI to understand."),
+    questionCount: z.coerce.number().int().min(1, "Must have at least 1 question."),
+});
 
 const fileToDataUri = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -78,25 +85,17 @@ const fileToDataUri = (file: File): Promise<string> => {
     });
 };
 
-
-const CreateExamDialog = ({ onExamCreated }: { onExamCreated: () => void }) => {
+const CreateExamFromSourceDialog = ({ onExamCreated }: { onExamCreated: () => void }) => {
     const { toast } = useToast();
     const [open, setOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const form = useForm<z.infer<typeof formSchema>>({
-        resolver: zodResolver(formSchema),
-        defaultValues: {
-            title: "",
-            description: "",
-            duration: 60,
-            prompt: "",
-            difficulty: "Medium",
-            sourceFile: undefined,
-        },
+    const form = useForm<z.infer<typeof createFromSourceFormSchema>>({
+        resolver: zodResolver(createFromSourceFormSchema),
+        defaultValues: { title: "", description: "", duration: 60, prompt: "", difficulty: "Medium", sourceFile: undefined },
     });
 
-    const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    const onSubmit = async (values: z.infer<typeof createFromSourceFormSchema>) => {
         setIsSubmitting(true);
         try {
              let sourceDataUri: string | undefined = undefined;
@@ -110,17 +109,11 @@ const CreateExamDialog = ({ onExamCreated }: { onExamCreated: () => void }) => {
                 sourceDataUri = await fileToDataUri(file);
             }
 
-            const input: CreateExamFromSourceInput = { 
-                ...values,
-                sourceDataUri 
-            };
+            const input: CreateExamFromSourceInput = { ...values, sourceDataUri };
             const result = await createExamFromSource(input);
 
             if (result.success) {
-                toast({
-                    title: "Exam Created by AI",
-                    description: result.message,
-                });
+                toast({ title: "Exam Created by AI", description: result.message });
                 onExamCreated();
                 form.reset();
                 setOpen(false);
@@ -128,11 +121,72 @@ const CreateExamDialog = ({ onExamCreated }: { onExamCreated: () => void }) => {
                 throw new Error(result.message);
             }
         } catch (error: any) {
-            toast({
-                variant: "destructive",
-                title: "Failed to create exam",
-                description: error.message || "An unexpected error occurred.",
-            });
+            toast({ variant: "destructive", title: "Failed to create exam", description: error.message || "An unexpected error occurred." });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button variant="outline">
+                    <FilePlus2 className="mr-2 h-4 w-4" />
+                    Create from Source
+                </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-3xl">
+                <form onSubmit={form.handleSubmit(onSubmit)}>
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2"><Sparkles className="h-6 w-6 text-primary"/> AI Content Generator</DialogTitle>
+                        <DialogDescription>Generate a new exam and questions from a source document (e.g., PDF study guide) or a detailed prompt.</DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-6 py-8">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             <div className="grid gap-2"><Label htmlFor="title">Exam Title</Label><Input id="title" {...form.register("title")} placeholder="e.g., CPL Aerodynamics Midterm" />{form.formState.errors.title && <p className="text-sm text-destructive">{form.formState.errors.title.message}</p>}</div>
+                             <div className="grid gap-2"><Label htmlFor="description">Short Description</Label><Input id="description" {...form.register("description")} placeholder="A brief summary of the exam's content." />{form.formState.errors.description && <p className="text-sm text-destructive">{form.formState.errors.description.message}</p>}</div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid gap-2"><Label htmlFor="duration">Duration (minutes)</Label><Input id="duration" type="number" {...form.register("duration")} />{form.formState.errors.duration && <p className="text-sm text-destructive">{form.formState.errors.duration.message}</p>}</div>
+                            <div className="grid gap-2"><Label htmlFor="difficulty">Difficulty</Label><Controller control={form.control} name="difficulty" render={({ field }) => (<Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger id="difficulty"><SelectValue placeholder="Select difficulty..." /></SelectTrigger><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select>)} /></div>
+                        </div>
+                        <div className="grid gap-2"><Label htmlFor="sourceFile">Source Document (Optional)</Label><div className="flex items-center gap-2 p-3 border-dashed border-2 rounded-lg justify-center text-muted-foreground"><FileUp className="h-6 w-6"/><Input id="sourceFile" type="file" {...form.register("sourceFile")} className="text-sm border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"/></div><p className="text-xs text-muted-foreground">Upload a PDF/text file. AI will parse questions or generate new ones from it.</p></div>
+                        <div className="grid gap-2"><Label htmlFor="prompt">AI Prompt</Label><Textarea id="prompt" {...form.register("prompt")} placeholder="Example: Generate a 15-question quiz from the uploaded handout on 'High-Speed Flight'. Focus on the concepts of Mach number and shockwaves." className="min-h-32"/>{form.formState.errors.prompt && <p className="text-sm text-destructive">{form.formState.errors.prompt.message}</p>}</div>
+                    </div>
+                    <DialogFooter><DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose><Button type="submit" disabled={isSubmitting}>{isSubmitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />} {isSubmitting ? "Generating Content..." : "Generate with AI"}</Button></DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+
+const CreateExamFromBankDialog = ({ onExamCreated }: { onExamCreated: () => void }) => {
+    const { toast } = useToast();
+    const [open, setOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const form = useForm<z.infer<typeof createFromBankFormSchema>>({
+        resolver: zodResolver(createFromBankFormSchema),
+        defaultValues: { title: "", description: "", duration: 60, prompt: "", questionCount: 10, },
+    });
+
+    const onSubmit = async (values: z.infer<typeof createFromBankFormSchema>) => {
+        setIsSubmitting(true);
+        try {
+            const input: CreateExamInput = { ...values };
+            const result = await createExam(input);
+
+            if (result.success) {
+                toast({ title: "Exam Assembled by AI", description: result.message });
+                onExamCreated();
+                form.reset();
+                setOpen(false);
+            } else {
+                throw new Error(result.message);
+            }
+        } catch (error: any) {
+            toast({ variant: "destructive", title: "Failed to create exam", description: error.message || "An unexpected error occurred." });
         } finally {
             setIsSubmitting(false);
         }
@@ -142,90 +196,28 @@ const CreateExamDialog = ({ onExamCreated }: { onExamCreated: () => void }) => {
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
                 <Button>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Create New Exam with AI
+                    <BookCheck className="mr-2 h-4 w-4" />
+                    Create from Bank
                 </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-3xl">
+            <DialogContent className="sm:max-w-2xl">
                 <form onSubmit={form.handleSubmit(onSubmit)}>
                     <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                           <Sparkles className="h-6 w-6 text-primary"/> AI Exam Generator
-                        </DialogTitle>
-                        <DialogDescription>
-                           Provide a source document (like a PDF handout) and/or a detailed prompt. The AI will generate the questions and build the exam for you.
-                        </DialogDescription>
+                        <DialogTitle className="flex items-center gap-2"><Sparkles className="h-6 w-6 text-primary"/> AI Exam Assembler</DialogTitle>
+                        <DialogDescription>Build a new exam by having the AI select relevant questions from the existing question bank based on your prompt.</DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-6 py-8">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                             <div className="grid gap-2">
-                                <Label htmlFor="title">Exam Title</Label>
-                                <Input id="title" {...form.register("title")} placeholder="e.g., CPL Aerodynamics Midterm" />
-                                {form.formState.errors.title && <p className="text-sm text-destructive">{form.formState.errors.title.message}</p>}
-                            </div>
-                             <div className="grid gap-2">
-                                <Label htmlFor="description">Short Description</Label>
-                                <Input id="description" {...form.register("description")} placeholder="A brief summary of the exam's content." />
-                                {form.formState.errors.description && <p className="text-sm text-destructive">{form.formState.errors.description.message}</p>}
-                            </div>
+                             <div className="grid gap-2"><Label htmlFor="title-bank">Exam Title</Label><Input id="title-bank" {...form.register("title")} placeholder="e.g., PPL Final Practice Exam" />{form.formState.errors.title && <p className="text-sm text-destructive">{form.formState.errors.title.message}</p>}</div>
+                             <div className="grid gap-2"><Label htmlFor="description-bank">Short Description</Label><Input id="description-bank" {...form.register("description")} placeholder="A general knowledge PPL exam." />{form.formState.errors.description && <p className="text-sm text-destructive">{form.formState.errors.description.message}</p>}</div>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="grid gap-2">
-                                <Label htmlFor="duration">Duration (minutes)</Label>
-                                <Input id="duration" type="number" {...form.register("duration")} />
-                                {form.formState.errors.duration && <p className="text-sm text-destructive">{form.formState.errors.duration.message}</p>}
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="difficulty">Difficulty</Label>
-                                <Controller
-                                    control={form.control}
-                                    name="difficulty"
-                                    render={({ field }) => (
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                            <SelectTrigger id="difficulty">
-                                                <SelectValue placeholder="Select difficulty..." />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="Easy">Easy</SelectItem>
-                                                <SelectItem value="Medium">Medium</SelectItem>
-                                                <SelectItem value="Hard">Hard</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    )}
-                                />
-                            </div>
+                            <div className="grid gap-2"><Label htmlFor="duration-bank">Duration (minutes)</Label><Input id="duration-bank" type="number" {...form.register("duration")} />{form.formState.errors.duration && <p className="text-sm text-destructive">{form.formState.errors.duration.message}</p>}</div>
+                            <div className="grid gap-2"><Label htmlFor="questionCount-bank">Number of Questions</Label><Input id="questionCount-bank" type="number" {...form.register("questionCount")} />{form.formState.errors.questionCount && <p className="text-sm text-destructive">{form.formState.errors.questionCount.message}</p>}</div>
                         </div>
-
-                         <div className="grid gap-2">
-                            <Label htmlFor="sourceFile">Source Document (Optional)</Label>
-                             <div className="flex items-center gap-2 p-3 border-dashed border-2 rounded-lg justify-center text-muted-foreground">
-                                <FileUp className="h-6 w-6"/>
-                                <Input id="sourceFile" type="file" {...form.register("sourceFile")} className="text-sm border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"/>
-                             </div>
-                            <p className="text-xs text-muted-foreground">Upload a PDF or text file. The AI will either parse existing questions or generate new ones from this handout.</p>
-                        </div>
-
-
-                        <div className="grid gap-2">
-                            <Label htmlFor="prompt">AI Prompt</Label>
-                            <Textarea 
-                                id="prompt" 
-                                {...form.register("prompt")} 
-                                placeholder="Example: Generate a 15-question quiz from the uploaded handout on 'High-Speed Flight'. Focus on the concepts of Mach number and shockwaves." 
-                                className="min-h-32"
-                            />
-                            {form.formState.errors.prompt && <p className="text-sm text-destructive">{form.formState.errors.prompt.message}</p>}
-                        </div>
+                        <div className="grid gap-2"><Label htmlFor="prompt-bank">AI Prompt</Label><Textarea id="prompt-bank" {...form.register("prompt")} placeholder="Example: Create a 25-question exam for private pilots focusing on meteorology and weather chart interpretation." className="min-h-24"/>{form.formState.errors.prompt && <p className="text-sm text-destructive">{form.formState.errors.prompt.message}</p>}</div>
                     </div>
-                    <DialogFooter>
-                        <DialogClose asChild>
-                            <Button type="button" variant="secondary">Cancel</Button>
-                        </DialogClose>
-                        <Button type="submit" disabled={isSubmitting}>
-                            {isSubmitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
-                             {isSubmitting ? "Building Exam..." : "Build Exam with AI"}
-                        </Button>
-                    </DialogFooter>
+                    <DialogFooter><DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose><Button type="submit" disabled={isSubmitting}>{isSubmitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />} {isSubmitting ? "Assembling Exam..." : "Build Exam with AI"}</Button></DialogFooter>
                 </form>
             </DialogContent>
         </Dialog>
@@ -266,9 +258,12 @@ export default function ExamManagementPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold md:text-4xl font-headline">Exam Management</h1>
-                    <p className="text-muted-foreground">Create, view, and manage mock exams using the AI agent.</p>
+                    <p className="text-muted-foreground">Create, view, and manage mock exams using AI-powered tools.</p>
                 </div>
-                <CreateExamDialog onExamCreated={() => {}} />
+                <div className="flex items-center gap-2">
+                    <CreateExamFromSourceDialog onExamCreated={() => {}} />
+                    <CreateExamFromBankDialog onExamCreated={() => {}} />
+                </div>
             </div>
 
             <Card>
@@ -296,7 +291,7 @@ export default function ExamManagementPage() {
                                 {exams.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={5} className="text-center h-24">
-                                            No exams found. Use the AI agent to create one.
+                                            No exams found. Use one of the AI agents to create one.
                                         </TableCell>
                                     </TableRow>
                                 ) : (
@@ -317,6 +312,7 @@ export default function ExamManagementPage() {
                                                 <DropdownMenuContent align="end">
                                                     <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                                     <DropdownMenuItem>View Details</DropdownMenuItem>
+                                                    <DropdownMenuItem>Edit Exam</DropdownMenuItem>
                                                     <DropdownMenuItem>Duplicate</DropdownMenuItem>
                                                     <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
                                                 </DropdownMenuContent>

@@ -2,10 +2,9 @@
 'use server';
 
 /**
- * @fileOverview DEPRECATED: This flow is no longer used. Please use create-exam-from-source.ts instead.
- * Allows administrators to create new exams using an AI agent.
+ * @fileOverview Allows administrators to create new exams by selecting questions from the existing question bank using an AI agent.
  * 
- * - createExam - A function that handles creating a new exam.
+ * - createExam - A function that handles creating a new exam from the question bank.
  * - CreateExamInput - The input type for the createExam function.
  * - CreateExamOutput - The return type for the createExam function.
  */
