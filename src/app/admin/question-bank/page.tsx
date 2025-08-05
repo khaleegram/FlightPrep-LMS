@@ -49,17 +49,22 @@ import { useToast } from "@/hooks/use-toast";
 import { addQuestion, AddQuestionInput } from "@/ai/flows/add-question";
 import { getFirestore, collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { app } from '@/lib/firebase';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const departments = ['Flying School', 'Aircraft Maintenance Engineering', 'Air Traffic Control', 'Cabin Crew', 'Prospective Students'] as const;
 
 type Question = {
     id: string;
     questionText: string;
     subject: string;
+    department: string;
     createdAt: string;
 }
 
 const formSchema = z.object({
-    questionText: z.string().min(10, "Question must be at least 10 characters long."),
+    department: z.string({ required_error: "Department is required." }),
     subject: z.string().min(3, "Subject is required."),
+    questionText: z.string().min(10, "Question must be at least 10 characters long."),
     options: z.array(z.object({ value: z.string().min(1, "Option cannot be empty.") })).min(2, "At least two options are required."),
     correctAnswer: z.string({ required_error: "You must select a correct answer." }),
 });
@@ -72,8 +77,9 @@ const CreateQuestionDialog = ({ onQuestionAdded }: { onQuestionAdded: () => void
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
-            questionText: "",
+            department: undefined,
             subject: "",
+            questionText: "",
             options: [{ value: "" }, { value: "" }],
             correctAnswer: undefined,
         },
@@ -88,8 +94,9 @@ const CreateQuestionDialog = ({ onQuestionAdded }: { onQuestionAdded: () => void
         setIsSubmitting(true);
         try {
             const input: AddQuestionInput = {
-                questionText: values.questionText,
+                department: values.department,
                 subject: values.subject,
+                questionText: values.questionText,
                 options: values.options.map(o => o.value),
                 correctAnswer: values.correctAnswer,
             };
@@ -135,11 +142,32 @@ const CreateQuestionDialog = ({ onQuestionAdded }: { onQuestionAdded: () => void
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-6 py-8">
-                        <div className="grid gap-2">
-                            <Label htmlFor="subject">Subject</Label>
-                            <Input id="subject" {...form.register("subject")} placeholder="e.g., Air Law" />
-                             {form.formState.errors.subject && <p className="text-sm text-destructive">{form.formState.errors.subject.message}</p>}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid gap-2">
+                                <Label htmlFor="department">Department</Label>
+                                <Controller
+                                    control={form.control}
+                                    name="department"
+                                    render={({ field }) => (
+                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <SelectTrigger id="department">
+                                                <SelectValue placeholder="Select a department..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {departments.map(dep => <SelectItem key={dep} value={dep}>{dep}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                    )}
+                                />
+                                {form.formState.errors.department && <p className="text-sm text-destructive">{form.formState.errors.department.message}</p>}
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="subject">Subject</Label>
+                                <Input id="subject" {...form.register("subject")} placeholder="e.g., Air Law" />
+                                {form.formState.errors.subject && <p className="text-sm text-destructive">{form.formState.errors.subject.message}</p>}
+                            </div>
                         </div>
+
                         <div className="grid gap-2">
                             <Label htmlFor="questionText">Question Text</Label>
                             <Textarea id="questionText" {...form.register("questionText")} placeholder="Enter the full question text here..." />
@@ -252,6 +280,7 @@ export default function QuestionBankPage() {
                             <TableHeader>
                                 <TableRow>
                                     <TableHead>Question</TableHead>
+                                    <TableHead className="w-[200px]">Department</TableHead>
                                     <TableHead className="w-[150px]">Subject</TableHead>
                                     <TableHead className="w-[100px] text-right">Actions</TableHead>
                                 </TableRow>
@@ -259,7 +288,7 @@ export default function QuestionBankPage() {
                             <TableBody>
                                 {questions.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={3} className="text-center h-24">
+                                        <TableCell colSpan={4} className="text-center h-24">
                                             No questions found. Try seeding the database from the dashboard.
                                         </TableCell>
                                     </TableRow>
@@ -267,6 +296,7 @@ export default function QuestionBankPage() {
                                     questions.map(q => (
                                     <TableRow key={q.id}>
                                         <TableCell className="font-medium">{q.questionText}</TableCell>
+                                        <TableCell><Badge variant="secondary">{q.department}</Badge></TableCell>
                                         <TableCell><Badge variant="outline">{q.subject}</Badge></TableCell>
                                         <TableCell className="text-right">
                                             <DropdownMenu>

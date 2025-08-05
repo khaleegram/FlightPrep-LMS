@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -54,6 +54,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 
+const departments = ['Flying School', 'Aircraft Maintenance Engineering', 'Air Traffic Control', 'Cabin Crew', 'Prospective Students'] as const;
+
 type Exam = {
     id: string;
     title: string;
@@ -67,6 +69,7 @@ type Question = {
     id: string;
     questionText: string;
     subject: string;
+    department: string;
 };
 
 const createFromSourceFormSchema = z.object({
@@ -243,11 +246,33 @@ const CreateExamManuallyDialog = ({ onExamCreated, allQuestions }: { onExamCreat
     const { toast } = useToast();
     const [open, setOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [selectedDepartment, setSelectedDepartment] = useState<string>("");
+    const [selectedSubject, setSelectedSubject] = useState<string>("");
 
     const form = useForm<z.infer<typeof createManuallyFormSchema>>({
         resolver: zodResolver(createManuallyFormSchema),
         defaultValues: { title: "", description: "", duration: 60, questionIds: [] },
     });
+
+    const { setValue } = form;
+
+    const availableSubjects = useMemo(() => {
+        if (!selectedDepartment) return [];
+        const subjects = allQuestions
+            .filter(q => q.department === selectedDepartment)
+            .map(q => q.subject);
+        return [...new Set(subjects)];
+    }, [allQuestions, selectedDepartment]);
+
+    const filteredQuestions = useMemo(() => {
+        if (!selectedDepartment || !selectedSubject) return [];
+        return allQuestions.filter(q => q.department === selectedDepartment && q.subject === selectedSubject);
+    }, [allQuestions, selectedDepartment, selectedSubject]);
+
+    useEffect(() => {
+        setValue("questionIds", []);
+    }, [selectedDepartment, selectedSubject, setValue]);
+
 
     const selectedIds = form.watch("questionIds");
 
@@ -261,6 +286,8 @@ const CreateExamManuallyDialog = ({ onExamCreated, allQuestions }: { onExamCreat
                 toast({ title: "Exam Created", description: result.message });
                 onExamCreated();
                 form.reset();
+                setSelectedDepartment("");
+                setSelectedSubject("");
                 setOpen(false);
             } else {
                 throw new Error(result.message);
@@ -294,6 +321,27 @@ const CreateExamManuallyDialog = ({ onExamCreated, allQuestions }: { onExamCreat
                             </div>
                             <div className="grid gap-2"><Label htmlFor="description-manual">Short Description</Label><Textarea id="description-manual" {...form.register("description")} placeholder="A brief summary of the exam's content." rows={2}/>{form.formState.errors.description && <p className="text-sm text-destructive">{form.formState.errors.description.message}</p>}</div>
                         </div>
+                        
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 col-span-1 md:col-span-2">
+                            <div className="grid gap-2">
+                                <Label>Department</Label>
+                                <Select value={selectedDepartment} onValueChange={val => { setSelectedDepartment(val); setSelectedSubject(""); }}>
+                                    <SelectTrigger><SelectValue placeholder="Select a department..." /></SelectTrigger>
+                                    <SelectContent>
+                                        {departments.map(dep => <SelectItem key={dep} value={dep}>{dep}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                             <div className="grid gap-2">
+                                <Label>Subject</Label>
+                                <Select value={selectedSubject} onValueChange={setSelectedSubject} disabled={!selectedDepartment}>
+                                    <SelectTrigger><SelectValue placeholder="Select a subject..." /></SelectTrigger>
+                                    <SelectContent>
+                                        {availableSubjects.map(sub => <SelectItem key={sub} value={sub}>{sub}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
 
                         <div className="col-span-1 md:col-span-2">
                             <Label>Select Questions</Label>
@@ -301,7 +349,7 @@ const CreateExamManuallyDialog = ({ onExamCreated, allQuestions }: { onExamCreat
                                 name="questionIds"
                                 control={form.control}
                                 render={({ field }) => (
-                                    <ScrollArea className="h-72 mt-2 w-full rounded-md border">
+                                    <ScrollArea className="h-60 mt-2 w-full rounded-md border">
                                         <Table>
                                              <TableHeader>
                                                 <TableRow>
@@ -311,10 +359,16 @@ const CreateExamManuallyDialog = ({ onExamCreated, allQuestions }: { onExamCreat
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
-                                                {allQuestions.map(q => (
+                                                {filteredQuestions.length === 0 ? (
+                                                    <TableRow>
+                                                        <TableCell colSpan={3} className="text-center h-24 text-muted-foreground">
+                                                            {selectedDepartment && selectedSubject ? "No questions found for this subject." : "Please select a department and subject."}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ) : filteredQuestions.map(q => (
                                                     <TableRow key={q.id}>
                                                         <TableCell><Checkbox checked={field.value?.includes(q.id)} onCheckedChange={(checked) => {
-                                                            return checked ? field.onChange([...field.value, q.id]) : field.onChange(field.value?.filter((value) => value !== q.id))
+                                                            return checked ? field.onChange([...(field.value || []), q.id]) : field.onChange(field.value?.filter((value) => value !== q.id))
                                                         }} /></TableCell>
                                                         <TableCell className="font-medium">{q.questionText}</TableCell>
                                                         <TableCell><Badge variant="outline">{q.subject}</Badge></TableCell>

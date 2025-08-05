@@ -17,6 +17,7 @@ const AddQuestionInputSchema = z.object({
   questionText: z.string().describe('The full text of the question.'),
   options: z.array(z.string()).min(2, "At least two options are required.").describe('An array of possible answers.'),
   correctAnswer: z.string().describe('The correct answer from the options array.'),
+  department: z.string().describe('The department the question belongs to (e.g., Flying School).'),
   subject: z.string().describe('The subject or topic the question belongs to (e.g., Air Law, Meteorology).'),
 });
 export type AddQuestionInput = z.infer<typeof AddQuestionInputSchema>;
