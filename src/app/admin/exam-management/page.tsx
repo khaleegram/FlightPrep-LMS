@@ -120,8 +120,8 @@ const CreateExamFromSourceDialog = ({ onExamCreated }: { onExamCreated: () => vo
              let sourceDataUri: string | undefined = undefined;
             if (values.sourceFile && values.sourceFile.length > 0) {
                 const file = values.sourceFile[0];
-                if (file.size > 4 * 1024 * 1024) { // 4MB limit
-                     toast({ variant: "destructive", title: "File Too Large", description: "Please upload a file smaller than 4MB." });
+                if (file.size > 20 * 1024 * 1024) { // 20MB limit
+                     toast({ variant: "destructive", title: "File Too Large", description: "Please upload a file smaller than 20MB." });
                      setIsSubmitting(false);
                      return;
                 }
@@ -169,7 +169,7 @@ const CreateExamFromSourceDialog = ({ onExamCreated }: { onExamCreated: () => vo
                             <div className="grid gap-2"><Label htmlFor="duration">Duration (minutes)</Label><Input id="duration" type="number" {...form.register("duration")} />{form.formState.errors.duration && <p className="text-sm text-destructive">{form.formState.errors.duration.message}</p>}</div>
                             <div className="grid gap-2"><Label htmlFor="difficulty">Difficulty</Label><Controller control={form.control} name="difficulty" render={({ field }) => (<Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger id="difficulty"><SelectValue placeholder="Select difficulty..." /></SelectTrigger><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select>)} /></div>
                         </div>
-                        <div className="grid gap-2"><Label htmlFor="sourceFile">Source Document (Optional)</Label><div className="flex items-center gap-2 p-3 border-dashed border-2 rounded-lg justify-center text-muted-foreground"><FileUp className="h-6 w-6"/><Input id="sourceFile" type="file" {...form.register("sourceFile")} className="text-sm border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"/></div><p className="text-xs text-muted-foreground">Upload a PDF/text file. AI will parse questions or generate new ones from it.</p></div>
+                        <div className="grid gap-2"><Label htmlFor="sourceFile">Source Document (Optional, up to 20MB)</Label><div className="flex items-center gap-2 p-3 border-dashed border-2 rounded-lg justify-center text-muted-foreground"><FileUp className="h-6 w-6"/><Input id="sourceFile" type="file" {...form.register("sourceFile")} className="text-sm border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"/></div><p className="text-xs text-muted-foreground">Upload a PDF/text file. AI will parse questions (including diagrams) or generate new ones from it.</p></div>
                         <div className="grid gap-2"><Label htmlFor="prompt">AI Prompt</Label><Textarea id="prompt" {...form.register("prompt")} placeholder="Example: Generate a 15-question quiz from the uploaded handout on 'High-Speed Flight'. Focus on the concepts of Mach number and shockwaves." className="min-h-32"/>{form.formState.errors.prompt && <p className="text-sm text-destructive">{form.formState.errors.prompt.message}</p>}</div>
                     </div>
                     <DialogFooter><DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose><Button type="submit" disabled={isSubmitting}>{isSubmitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />} {isSubmitting ? "Generating Content..." : "Generate with AI"}</Button></DialogFooter>

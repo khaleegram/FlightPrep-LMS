@@ -15,7 +15,7 @@ import { adminDb } from '@/lib/firebase-admin';
 
 // Define the schema for a single generated question
 const GeneratedQuestionSchema = z.object({
-  questionText: z.string().describe('The full text of the question.'),
+  questionText: z.string().describe('The full text of the question. If the question refers to a diagram, mention it (e.g., "Based on the diagram...").'),
   options: z.array(z.string()).min(4).max(4).describe('An array of exactly 4 possible answers.'),
   correctAnswer: z.string().describe('The correct answer from the options array.'),
   subject: z.string().describe('The subject or topic the question belongs to (e.g., Air Law, Meteorology).'),
@@ -33,7 +33,7 @@ const CreateExamFromSourceInputSchema = z.object({
   duration: z.number().int().positive().describe('The duration of the exam in minutes.'),
   prompt: z.string().describe('A natural language prompt describing the desired exam content and instructions for the AI.'),
   difficulty: z.enum(['Easy', 'Medium', 'Hard']).describe('The desired difficulty level for the questions.'),
-  sourceDataUri: z.string().optional().describe('A document (PDF or TXT) encoded as a data URI containing source material for question generation or parsing.'),
+  sourceDataUri: z.string().optional().describe("A document (e.g., PDF) encoded as a data URI containing source material for question generation. The AI will not store this document; it will only use it to extract information and create the exam."),
 });
 
 // Define the output schema for the flow
@@ -52,13 +52,13 @@ const examGeneratorPrompt = ai.definePrompt({
     prompt: `You are an AI Exam Creation Agent for an advanced aviation training platform. Your task is to generate a set of high-quality multiple-choice questions based on the provided instructions and source material.
 
 Key Instructions:
-1.  **Analyze the Source**: You will be given source material as a data URI. This could be a study handout, a document with existing questions, or other text content.
+1.  **Analyze the Source**: You will be given source material as a data URI. This material can include text, diagrams, charts, and other images. Analyze ALL content to create relevant questions.
 2.  **Follow the Prompt**: Adhere strictly to the user's prompt regarding the number of questions, topics, and focus.
 3.  **Set Difficulty**: Generate questions that match the specified difficulty level: {{{difficulty}}}.
 4.  **Format Correctly**: Each question must have exactly four options and one clearly identified correct answer. The subject should be relevant to the content.
 5.  **Parse or Generate**:
     - If the source material appears to be a list of existing questions, your primary task is to parse and format them correctly.
-    - If the source material is a study guide or handout, your task is to generate new, original questions based on the information within that handout.
+    - If the source material is a study guide or handout, your task is to generate new, original questions based on ALL the information within that handout, including text and diagrams.
 6.  **Return JSON**: Your final output must be a valid JSON object matching the required schema, containing an array of generated questions.
 
 Admin's Prompt: {{{prompt}}}
@@ -101,7 +101,7 @@ const createExamFromSourceFlow = ai.defineFlow(
         const questionIds: string[] = [];
         newQuestions.forEach(q => {
             const docRef = adminDb.collection('questions').doc();
-            questionBatch.set(docRef, { ...q, createdAt: new Date().toISOString() });
+            questionBatch.set(docRef, { ...q, department: 'N/A', createdAt: new Date().toISOString() });
             questionIds.push(docRef.id);
         });
         await questionBatch.commit();
