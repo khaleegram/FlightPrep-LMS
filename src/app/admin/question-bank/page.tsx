@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -10,15 +10,12 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -68,7 +65,7 @@ const formSchema = z.object({
     correctAnswer: z.string({ required_error: "You must select a correct answer." }),
 });
 
-const CreateQuestionDialog = ({ onQuestionAdded }: { onQuestionAdded: () => void }) => {
+const CreateQuestionDialog = ({ onQuestionAdded, lastUsed, setLastUsed }: { onQuestionAdded: () => void, lastUsed: {department: string, subject: string}, setLastUsed: (lastUsed: {department: string, subject: string}) => void }) => {
     const { toast } = useToast();
     const [open, setOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -78,8 +75,8 @@ const CreateQuestionDialog = ({ onQuestionAdded }: { onQuestionAdded: () => void
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
-            department: undefined,
-            subject: undefined,
+            department: lastUsed.department || undefined,
+            subject: lastUsed.subject || undefined,
             questionText: "",
             options: [{ value: "" }, { value: "" }],
             correctAnswer: undefined,
@@ -91,26 +88,52 @@ const CreateQuestionDialog = ({ onQuestionAdded }: { onQuestionAdded: () => void
         name: "options",
     });
 
-    useEffect(() => {
-        if(open) {
-            listDepartments().then(setAvailableDepartments);
+     const fetchDeps = useCallback(async () => {
+        try {
+            const departments = await listDepartments();
+            setAvailableDepartments(departments);
+        } catch (error) {
+             toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch departments.'})
         }
-    }, [open]);
+    }, [toast]);
+
+    useEffect(() => {
+        if (open) {
+            fetchDeps();
+        }
+    }, [open, fetchDeps]);
 
     const selectedDepartment = form.watch("department");
+    
+    const fetchSubjects = useCallback(async (departmentName: string) => {
+        try {
+            const subjects = await listSubjects({ department: departmentName });
+            setAvailableSubjects(subjects);
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not fetch subjects.'})
+        }
+    }, [toast]);
 
     useEffect(() => {
         if (selectedDepartment) {
-            listSubjects({ department: selectedDepartment }).then(subjects => {
-                setAvailableSubjects(subjects);
-                form.resetField("subject");
-            });
+            fetchSubjects(selectedDepartment);
         } else {
             setAvailableSubjects([]);
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedDepartment]);
+    }, [selectedDepartment, fetchSubjects]);
 
+    // Pre-fill form if lastUsed values exist
+     useEffect(() => {
+        if (lastUsed.department) {
+            form.setValue('department', lastUsed.department);
+            if (lastUsed.subject) {
+                 fetchSubjects(lastUsed.department).then(() => {
+                     form.setValue('subject', lastUsed.subject);
+                 })
+            }
+        }
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+     }, [lastUsed, form.setValue]);
 
     const onSubmit = async (values: z.infer<typeof formSchema>) => {
         setIsSubmitting(true);
@@ -131,7 +154,18 @@ const CreateQuestionDialog = ({ onQuestionAdded }: { onQuestionAdded: () => void
                     description: result.message,
                 });
                 onQuestionAdded();
-                form.reset();
+                
+                // Keep department and subject for next question, clear other fields
+                setLastUsed({ department: values.department, subject: values.subject });
+                form.reset({
+                    department: values.department,
+                    subject: values.subject,
+                    questionText: "",
+                    options: [{ value: "" }, { value: "" }],
+                    correctAnswer: undefined
+                });
+
+                // Close dialog after submission
                 setOpen(false);
             } else {
                 throw new Error(result.message);
@@ -159,9 +193,6 @@ const CreateQuestionDialog = ({ onQuestionAdded }: { onQuestionAdded: () => void
                 <form onSubmit={form.handleSubmit(onSubmit)}>
                     <DialogHeader>
                         <DialogTitle>Create New Question</DialogTitle>
-                        <DialogDescription>
-                            Add a new question to the question bank for use in mock exams.
-                        </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-6 py-8">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -171,7 +202,13 @@ const CreateQuestionDialog = ({ onQuestionAdded }: { onQuestionAdded: () => void
                                     control={form.control}
                                     name="department"
                                     render={({ field }) => (
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <Select 
+                                            onValueChange={(value) => {
+                                                field.onChange(value);
+                                                form.resetField("subject");
+                                            }}
+                                            value={field.value}
+                                        >
                                             <SelectTrigger id="department">
                                                 <SelectValue placeholder="Select a department..." />
                                             </SelectTrigger>
@@ -237,7 +274,7 @@ const CreateQuestionDialog = ({ onQuestionAdded }: { onQuestionAdded: () => void
                                 )}
                             />
                             {form.formState.errors.options && <p className="text-sm text-destructive">Each option must have a value.</p>}
-                            {form.formState.errors.correctAnswer && <p className="text-sm text-destructive">{form.formState.errors.correctAnswer.message}</p>}
+                             {form.formState.errors.correctAnswer && <p className="text-sm text-destructive">{form.formState.errors.correctAnswer.message}</p>}
 
                             <Button type="button" variant="outline" size="sm" onClick={() => append({ value: "" })}>
                                 <PlusCircle className="mr-2 h-4 w-4" />
@@ -245,7 +282,7 @@ const CreateQuestionDialog = ({ onQuestionAdded }: { onQuestionAdded: () => void
                             </Button>
                         </div>
                     </div>
-                    <DialogFooter>
+                    <div className="flex justify-end gap-2 border-t pt-4">
                         <DialogClose asChild>
                             <Button type="button" variant="secondary">Cancel</Button>
                         </DialogClose>
@@ -253,7 +290,7 @@ const CreateQuestionDialog = ({ onQuestionAdded }: { onQuestionAdded: () => void
                             {isSubmitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />}
                              {isSubmitting ? "Saving..." : "Save Question"}
                         </Button>
-                    </DialogFooter>
+                    </div>
                 </form>
             </DialogContent>
         </Dialog>
@@ -265,6 +302,7 @@ export default function QuestionBankPage() {
     const [questions, setQuestions] = useState<Question[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const { toast } = useToast();
+    const [lastUsed, setLastUsed] = useState({ department: "", subject: ""});
 
     useEffect(() => {
         const db = getFirestore(app);
@@ -297,7 +335,7 @@ export default function QuestionBankPage() {
                     <h1 className="text-3xl font-bold md:text-4xl font-headline">Question Bank</h1>
                     <p className="text-muted-foreground">Manage all questions for mock exams across all subjects.</p>
                 </div>
-                <CreateQuestionDialog onQuestionAdded={() => {}} />
+                <CreateQuestionDialog onQuestionAdded={() => {}} lastUsed={lastUsed} setLastUsed={setLastUsed} />
             </div>
 
             <Card>
@@ -324,7 +362,7 @@ export default function QuestionBankPage() {
                                 {questions.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={4} className="text-center h-24">
-                                            No questions found. Try seeding the database from the dashboard.
+                                            No questions found. Add one to get started.
                                         </TableCell>
                                     </TableRow>
                                 ) : (
