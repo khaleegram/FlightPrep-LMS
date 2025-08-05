@@ -45,17 +45,15 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { createExamFromSource, CreateExamFromSourceInput } from "@/ai/flows/create-exam-from-source";
+import { createExamFromSource } from "@/ai/flows/create-exam-from-source";
 import { createExam as createExamFromBankWithAI } from "@/ai/flows/create-exam-from-bank";
-import { createExam as createExamManually, CreateExamInput } from "@/ai/flows/create-exam";
+import { createExam as createExamManually } from "@/ai/flows/create-exam";
 import { getFirestore, collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { app } from '@/lib/firebase';
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { listSubjects, Subject } from "@/ai/flows/manage-subjects";
-
-const departments = ['Flying School', 'Aircraft Maintenance Engineering', 'Air Traffic Control', 'Cabin Crew', 'Prospective Students'] as const;
+import { listSubjects, Subject, listDepartments, Department } from "@/ai/flows/manage-subjects";
 
 type Exam = {
     id: string;
@@ -130,7 +128,7 @@ const CreateExamFromSourceDialog = ({ onExamCreated }: { onExamCreated: () => vo
                 sourceDataUri = await fileToDataUri(file);
             }
 
-            const input: CreateExamFromSourceInput = { ...values, sourceDataUri };
+            const input = { ...values, sourceDataUri };
             const result = await createExamFromSource(input);
 
             if (result.success) {
@@ -250,11 +248,18 @@ const CreateExamManuallyDialog = ({ onExamCreated, allQuestions }: { onExamCreat
     const [selectedDepartment, setSelectedDepartment] = useState<string>("");
     const [selectedSubject, setSelectedSubject] = useState<string>("");
     const [availableSubjects, setAvailableSubjects] = useState<Subject[]>([]);
+    const [availableDepartments, setAvailableDepartments] = useState<Department[]>([]);
 
     const form = useForm<z.infer<typeof createManuallyFormSchema>>({
         resolver: zodResolver(createManuallyFormSchema),
         defaultValues: { title: "", description: "", duration: 60, questionIds: [] },
     });
+
+    useEffect(() => {
+        if(open) {
+            listDepartments().then(setAvailableDepartments);
+        }
+    }, [open]);
 
     const { setValue } = form;
 
@@ -289,7 +294,7 @@ const CreateExamManuallyDialog = ({ onExamCreated, allQuestions }: { onExamCreat
     const onSubmit = async (values: z.infer<typeof createManuallyFormSchema>) => {
         setIsSubmitting(true);
         try {
-            const input: CreateExamInput = { ...values };
+            const input = { ...values };
             const result = await createExamManually(input);
 
             if (result.success) {
@@ -338,7 +343,7 @@ const CreateExamManuallyDialog = ({ onExamCreated, allQuestions }: { onExamCreat
                                 <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
                                     <SelectTrigger><SelectValue placeholder="Select a department..." /></SelectTrigger>
                                     <SelectContent>
-                                        {departments.map(dep => <SelectItem key={dep} value={dep}>{dep}</SelectItem>)}
+                                        {availableDepartments.map(dep => <SelectItem key={dep.id} value={dep.name}>{dep.name}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
                             </div>

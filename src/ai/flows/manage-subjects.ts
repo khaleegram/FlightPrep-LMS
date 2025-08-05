@@ -2,10 +2,12 @@
 'use server';
 
 /**
- * @fileOverview A set of flows for managing subjects within departments.
+ * @fileOverview A set of flows for managing subjects and departments.
  *
  * - addSubject: Creates a new subject linked to a department.
  * - listSubjects: Retrieves all subjects, optionally filtered by department.
+ * - addDepartment: Creates a new department.
+ * - listDepartments: Retrieves all departments.
  */
 
 import { ai } from '@/ai/genkit';
@@ -13,7 +15,7 @@ import { z } from 'genkit';
 import { adminDb } from '@/lib/firebase-admin';
 import type admin from 'firebase-admin';
 
-// Common auth policy for all subject management flows
+// Common auth policy for all management flows
 const isAdminPolicy = {
     policy: async (auth: any, input: any) => {
       if (!auth) {
@@ -37,9 +39,8 @@ const AddSubjectOutputSchema = z.object({
   message: z.string(),
   subjectId: z.string().optional(),
 });
-type AddSubjectOutput = z.infer<typeof AddSubjectOutputSchema>;
 
-export async function addSubject(input: AddSubjectInput): Promise<AddSubjectOutput> {
+export async function addSubject(input: AddSubjectInput) {
   return addSubjectFlow(input);
 }
 
@@ -77,8 +78,6 @@ const addSubjectFlow = ai.defineFlow(
 const ListSubjectsInputSchema = z.object({
     department: z.string().optional(),
 });
-type ListSubjectsInput = z.infer<typeof ListSubjectsInputSchema>;
-
 
 const SubjectSchema = z.object({
     id: z.string(),
@@ -88,10 +87,10 @@ const SubjectSchema = z.object({
 type Subject = z.infer<typeof SubjectSchema>;
 
 const ListSubjectsOutputSchema = z.array(SubjectSchema);
-type ListSubjectsOutput = z.infer<typeof ListSubjectsOutputSchema>;
+export type ListSubjectsOutput = z.infer<typeof ListSubjectsOutputSchema>;
 
 
-export async function listSubjects(input?: ListSubjectsInput): Promise<ListSubjectsOutput> {
+export async function listSubjects(input?: z.infer<typeof ListSubjectsInputSchema>) {
   return listSubjectsFlow(input || {});
 }
 
@@ -123,6 +122,90 @@ const listSubjectsFlow = ai.defineFlow(
       }));
     } catch (error) {
       console.error('Error listing subjects:', error);
+      return [];
+    }
+  }
+);
+
+
+// Add Department Flow
+const AddDepartmentInputSchema = z.object({
+  name: z.string().min(3, 'Department name must be at least 3 characters long.'),
+});
+
+const AddDepartmentOutputSchema = z.object({
+  success: z.boolean(),
+  message: z.string(),
+  departmentId: z.string().optional(),
+});
+
+export async function addDepartment(input: z.infer<typeof AddDepartmentInputSchema>) {
+  return addDepartmentFlow(input);
+}
+
+const addDepartmentFlow = ai.defineFlow(
+  {
+    name: 'addDepartmentFlow',
+    inputSchema: AddDepartmentInputSchema,
+    outputSchema: AddDepartmentOutputSchema,
+    auth: isAdminPolicy,
+  },
+  async (input) => {
+    try {
+      const deptRef = adminDb.collection('departments').doc();
+      await deptRef.set({
+        name: input.name,
+        createdAt: new Date().toISOString(),
+      });
+
+      return {
+        success: true,
+        message: `Department "${input.name}" has been created.`,
+        departmentId: deptRef.id,
+      };
+    } catch (error: any) {
+      console.error('Error adding department:', error);
+      return {
+        success: false,
+        message: 'An unexpected error occurred while adding the department.',
+      };
+    }
+  }
+);
+
+
+// List Departments Flow
+const DepartmentSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+});
+export type Department = z.infer<typeof DepartmentSchema>;
+
+const ListDepartmentsOutputSchema = z.array(DepartmentSchema);
+
+export async function listDepartments(): Promise<z.infer<typeof ListDepartmentsOutputSchema>> {
+  return listDepartmentsFlow();
+}
+
+const listDepartmentsFlow = ai.defineFlow(
+  {
+    name: 'listDepartmentsFlow',
+    inputSchema: z.void(),
+    outputSchema: ListDepartmentsOutputSchema,
+    auth: isAdminPolicy,
+  },
+  async () => {
+    try {
+      const snapshot = await adminDb.collection('departments').orderBy('name').get();
+      if (snapshot.empty) {
+        return [];
+      }
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        name: doc.data().name,
+      }));
+    } catch (error) {
+      console.error('Error listing departments:', error);
       return [];
     }
   }

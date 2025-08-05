@@ -1,6 +1,7 @@
+
 "use client"
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -13,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Logo from "@/components/logo";
+import { listDepartments, Department } from "@/ai/flows/manage-subjects";
 
 function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
     return (
@@ -62,8 +64,15 @@ export default function SignupPage() {
   const [password, setPassword] = useState('');
   const [department, setDepartment] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const router = useRouter();
   const { toast } = useToast();
+
+  useEffect(() => {
+    listDepartments().then(setDepartments).catch(err => {
+        console.error("Could not fetch departments for signup form.");
+    })
+  }, []);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,6 +115,8 @@ export default function SignupPage() {
     const authProvider = provider === 'google' ? googleProvider : appleProvider;
     try {
         await signInWithPopup(auth, authProvider);
+        // This flow is simplified. In a real app, you'd need a multi-step process
+        // to collect the department info after the OAuth sign-in.
         toast({ title: 'Success', description: 'Account created successfully!' });
         router.push('/student/dashboard');
     } catch (error: any) {
@@ -169,15 +180,12 @@ export default function SignupPage() {
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="department">Department</Label>
-                    <Select required onValueChange={setDepartment} disabled={isLoading}>
+                    <Select required onValueChange={setDepartment} disabled={isLoading || departments.length === 0}>
                       <SelectTrigger id="department">
                         <SelectValue placeholder="Select your department" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="flying-school">Flying School</SelectItem>
-                        <SelectItem value="maintenance">Aircraft Maintenance Engineering</SelectItem>
-                        <SelectItem value="atc">Air Traffic Control</SelectItem>
-                        <SelectItem value="cabin-crew">Cabin Crew</SelectItem>
+                        {departments.map(dep => <SelectItem key={dep.id} value={dep.name}>{dep.name}</SelectItem>)}
                         <SelectItem value="prospective">Prospective Student</SelectItem>
                       </SelectContent>
                     </Select>

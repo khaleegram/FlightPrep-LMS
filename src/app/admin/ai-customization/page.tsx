@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -19,15 +19,12 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { customizeAITutor, CustomizeAITutorInput } from "@/ai/flows/customize-ai-tutor";
+import { customizeAITutor } from "@/ai/flows/customize-ai-tutor";
+import { listDepartments, Department } from "@/ai/flows/manage-subjects";
 import { LoaderCircle, FileUp } from "lucide-react";
 
-const departments = ['Flying School', 'Aircraft Maintenance Engineering', 'Air Traffic Control', 'Cabin Crew', 'Prospective Students'] as const;
-
 const formSchema = z.object({
-    department: z.enum(departments, {
-        required_error: "Please select a department to customize.",
-    }),
+    department: z.string({ required_error: "Please select a department to customize."}),
     customPrompt: z.string().min(50, "The custom prompt must be at least 50 characters long.").optional().or(z.literal('')),
     knowledgeBaseUpdate: z.string().min(20, "The knowledge base update must be at least 20 characters long.").optional().or(z.literal('')),
     pdfHandout: z.instanceof(FileList).optional(),
@@ -48,6 +45,11 @@ const fileToDataUri = (file: File): Promise<string> => {
 export default function AiCustomizationPage() {
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [departments, setDepartments] = useState<Department[]>([]);
+
+    useEffect(() => {
+        listDepartments().then(setDepartments);
+    }, []);
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -77,7 +79,7 @@ export default function AiCustomizationPage() {
                 pdfDataUri = await fileToDataUri(file);
             }
 
-            const input: CustomizeAITutorInput = {
+            const input = {
                 department: values.department,
                 customPrompt: values.customPrompt || "",
                 knowledgeBaseUpdate: values.knowledgeBaseUpdate || "",
@@ -135,7 +137,7 @@ export default function AiCustomizationPage() {
                                             <SelectValue placeholder="Select a department..." />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {departments.map(dep => <SelectItem key={dep} value={dep}>{dep}</SelectItem>)}
+                                            {departments.map(dep => <SelectItem key={dep.id} value={dep.name}>{dep.name}</SelectItem>)}
                                         </SelectContent>
                                     </Select>
                                 )}

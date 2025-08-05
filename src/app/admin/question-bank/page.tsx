@@ -46,14 +46,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast";
-import { addQuestion, AddQuestionInput } from "@/ai/flows/add-question";
+import { addQuestion } from "@/ai/flows/add-question";
 import { getFirestore, collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { app } from '@/lib/firebase';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { listSubjects, Subject } from "@/ai/flows/manage-subjects";
-
-
-const departments = ['Flying School', 'Aircraft Maintenance Engineering', 'Air Traffic Control', 'Cabin Crew', 'Prospective Students'] as const;
+import { listSubjects, Subject, listDepartments, Department } from "@/ai/flows/manage-subjects";
 
 type Question = {
     id: string;
@@ -76,6 +73,7 @@ const CreateQuestionDialog = ({ onQuestionAdded }: { onQuestionAdded: () => void
     const [open, setOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [availableSubjects, setAvailableSubjects] = useState<Subject[]>([]);
+    const [availableDepartments, setAvailableDepartments] = useState<Department[]>([]);
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -92,6 +90,12 @@ const CreateQuestionDialog = ({ onQuestionAdded }: { onQuestionAdded: () => void
         control: form.control,
         name: "options",
     });
+
+    useEffect(() => {
+        if(open) {
+            listDepartments().then(setAvailableDepartments);
+        }
+    }, [open]);
 
     const selectedDepartment = form.watch("department");
 
@@ -111,7 +115,7 @@ const CreateQuestionDialog = ({ onQuestionAdded }: { onQuestionAdded: () => void
     const onSubmit = async (values: z.infer<typeof formSchema>) => {
         setIsSubmitting(true);
         try {
-            const input: AddQuestionInput = {
+            const input = {
                 department: values.department,
                 subject: values.subject,
                 questionText: values.questionText,
@@ -172,7 +176,7 @@ const CreateQuestionDialog = ({ onQuestionAdded }: { onQuestionAdded: () => void
                                                 <SelectValue placeholder="Select a department..." />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {departments.map(dep => <SelectItem key={dep} value={dep}>{dep}</SelectItem>)}
+                                                {availableDepartments.map(dep => <SelectItem key={dep.id} value={dep.name}>{dep.name}</SelectItem>)}
                                             </SelectContent>
                                         </Select>
                                     )}
