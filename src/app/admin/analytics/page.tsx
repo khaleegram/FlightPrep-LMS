@@ -1,4 +1,7 @@
 
+"use client";
+
+import { useEffect, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import {
   Card,
@@ -7,22 +10,63 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { getKpiData, getPassFailData, getScoreDistributionData, getDifficultSubjectsData } from "@/ai/flows/get-analytics-data";
-import type { Icon } from "lucide-react";
-import { BadgeCheck, BookOpen, Target, Users } from "lucide-react";
+import { getKpiData, getPassFailData, getScoreDistributionData, getDifficultSubjectsData, KpiDataOutput, PassFailDataOutput, ScoreDistributionOutput, DifficultSubjectsOutput } from "@/ai/flows/get-analytics-data";
+import type { Icon as LucideIcon } from "lucide-react";
+import { BadgeCheck, BookOpen, Target, Users, LoaderCircle } from "lucide-react";
 
-const iconMap: { [key: string]: Icon } = {
+const iconMap: { [key: string]: LucideIcon } = {
     BadgeCheck,
     Users,
     Target,
     BookOpen,
 };
 
-export default async function AnalyticsPage() {
-    const kpiData = await getKpiData();
-    const passFailData = await getPassFailData();
-    const scoreDistributionData = await getScoreDistributionData();
-    const difficultSubjectsData = await getDifficultSubjectsData();
+export default function AnalyticsPage() {
+    const [kpiData, setKpiData] = useState<KpiDataOutput | null>(null);
+    const [passFailData, setPassFailData] = useState<PassFailDataOutput | null>(null);
+    const [scoreDistributionData, setScoreDistributionData] = useState<ScoreDistributionOutput | null>(null);
+    const [difficultSubjectsData, setDifficultSubjectsData] = useState<DifficultSubjectsOutput | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const [kpi, passFail, scoreDist, diffSub] = await Promise.all([
+                    getKpiData(),
+                    getPassFailData(),
+                    getScoreDistributionData(),
+                    getDifficultSubjectsData()
+                ]);
+                setKpiData(kpi);
+                setPassFailData(passFail);
+                setScoreDistributionData(scoreDist);
+                setDifficultSubjectsData(diffSub);
+            } catch (error) {
+                console.error("Failed to fetch analytics data:", error);
+                // Optionally, show a toast notification here
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchData();
+    }, []);
+
+  if (isLoading) {
+    return (
+        <div className="flex h-full w-full items-center justify-center">
+            <LoaderCircle className="h-10 w-10 animate-spin text-primary" />
+        </div>
+    )
+  }
+
+  if (!kpiData || !passFailData || !scoreDistributionData || !difficultSubjectsData) {
+    return (
+        <div className="flex h-full w-full items-center justify-center">
+            <p className="text-muted-foreground">Could not load analytics data.</p>
+        </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-8">
