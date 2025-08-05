@@ -11,6 +11,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { adminDb } from '@/lib/firebase-admin';
+import type admin from 'firebase-admin';
 
 // Common auth policy for all subject management flows
 const isAdminPolicy = {
