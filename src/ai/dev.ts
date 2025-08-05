@@ -17,5 +17,6 @@ import '@/ai/flows/create-exam-from-source.ts';
 import '@/ai/flows/create-exam-from-bank.ts';
 import '@/ai/flows/manage-subjects.ts';
 import '@/ai/flows/delete-all-users.ts';
+import '@/ai/flows/analyze-document.ts';
 
 

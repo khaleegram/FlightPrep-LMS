@@ -54,6 +54,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { listSubjects, Subject, listDepartments, Department } from "@/ai/flows/manage-subjects";
+import { analyzeDocument, AnalyzeDocumentOutput } from "@/ai/flows/analyze-document";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
 
 type Exam = {
     id: string;
@@ -77,22 +80,7 @@ const createFromSourceFormSchema = z.object({
     duration: z.coerce.number().int().positive("Duration must be a positive number."),
     prompt: z.string().min(20, "Prompt must be detailed enough for the AI to understand."),
     difficulty: z.enum(['Easy', 'Medium', 'Hard']),
-    sourceFile: z.instanceof(FileList).optional(),
-});
-
-const createFromBankAIFormSchema = z.object({
-    title: z.string().min(5, "Title must be at least 5 characters long."),
-    description: z.string().min(10, "Description must be at least 10 characters long."),
-    duration: z.coerce.number().int().positive("Duration must be a positive number."),
-    prompt: z.string().min(20, "Prompt must be detailed enough for the AI to understand."),
-    questionCount: z.coerce.number().int().min(1, "Must have at least 1 question."),
-});
-
-const createManuallyFormSchema = z.object({
-    title: z.string().min(5, "Title must be at least 5 characters long."),
-    description: z.string().min(10, "Description must be at least 10 characters long."),
-    duration: z.coerce.number().int().positive("Duration must be a positive number."),
-    questionIds: z.array(z.string()).min(1, "You must select at least one question."),
+    sourceFile: z.instanceof(FileList).refine(files => files?.length > 0, "A source file is required."),
 });
 
 const fileToDataUri = (file: File): Promise<string> => {
@@ -108,33 +96,60 @@ const CreateExamFromSourceDialog = ({ onExamCreated }: { onExamCreated: () => vo
     const { toast } = useToast();
     const [open, setOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [analysisResult, setAnalysisResult] = useState<AnalyzeDocumentOutput | null>(null);
+    const [sourceDataUri, setSourceDataUri] = useState<string | null>(null);
 
     const form = useForm<z.infer<typeof createFromSourceFormSchema>>({
         resolver: zodResolver(createFromSourceFormSchema),
-        defaultValues: { title: "", description: "", duration: 60, prompt: "", difficulty: "Medium", sourceFile: undefined },
+        defaultValues: { title: "", description: "", duration: 60, prompt: "", difficulty: "Medium" },
     });
+
+    const { register, handleSubmit, setValue, formState, watch, reset } = form;
+    const sourceFile = watch("sourceFile");
+
+    useEffect(() => {
+        if (sourceFile && sourceFile.length > 0) {
+            const file = sourceFile[0];
+            if (file.size > 20 * 1024 * 1024) { // 20MB limit
+                 toast({ variant: "destructive", title: "File Too Large", description: "Please upload a file smaller than 20MB." });
+                 return;
+            }
+            setIsAnalyzing(true);
+            setAnalysisResult(null);
+            fileToDataUri(file).then(dataUri => {
+                setSourceDataUri(dataUri);
+                analyzeDocument({ sourceDataUri: dataUri })
+                    .then(result => {
+                        setValue("title", result.title);
+                        setValue("description", result.description);
+                        setAnalysisResult(result);
+                    })
+                    .catch(error => {
+                        toast({ variant: "destructive", title: "Analysis Failed", description: error.message });
+                    })
+                    .finally(() => setIsAnalyzing(false));
+            })
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sourceFile, setValue, toast]);
+
 
     const onSubmit = async (values: z.infer<typeof createFromSourceFormSchema>) => {
         setIsSubmitting(true);
         try {
-             let sourceDataUri: string | undefined = undefined;
-            if (values.sourceFile && values.sourceFile.length > 0) {
-                const file = values.sourceFile[0];
-                if (file.size > 20 * 1024 * 1024) { // 20MB limit
-                     toast({ variant: "destructive", title: "File Too Large", description: "Please upload a file smaller than 20MB." });
-                     setIsSubmitting(false);
-                     return;
-                }
-                sourceDataUri = await fileToDataUri(file);
+            if (!sourceDataUri) {
+                throw new Error("Source file data URI is not available.");
             }
-
             const input = { ...values, sourceDataUri };
             const result = await createExamFromSource(input);
 
             if (result.success) {
                 toast({ title: "Exam Created by AI", description: result.message });
                 onExamCreated();
-                form.reset();
+                reset();
+                setAnalysisResult(null);
+                setSourceDataUri(null);
                 setOpen(false);
             } else {
                 throw new Error(result.message);
@@ -155,24 +170,45 @@ const CreateExamFromSourceDialog = ({ onExamCreated }: { onExamCreated: () => vo
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-3xl">
-                <form onSubmit={form.handleSubmit(onSubmit)}>
+                <form onSubmit={handleSubmit(onSubmit)}>
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2"><Sparkles className="h-6 w-6 text-primary"/> AI Content Generator</DialogTitle>
-                        <DialogDescription>Generate a new exam and questions from a source document (e.g., PDF study guide) or a detailed prompt.</DialogDescription>
+                        <DialogDescription>Generate a new exam and questions from a source document (e.g., PDF study guide). Upload a file to begin.</DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-6 py-8">
+                        <div className="grid gap-2"><Label htmlFor="sourceFile">Source Document (PDF, up to 20MB)</Label><div className="flex items-center gap-2 p-3 border-dashed border-2 rounded-lg justify-center text-muted-foreground"><FileUp className="h-6 w-6"/><Input id="sourceFile" type="file" accept="application/pdf" {...register("sourceFile")} className="text-sm border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"/></div>
+                        {formState.errors.sourceFile && <p className="text-sm text-destructive">{formState.errors.sourceFile.message}</p>}
+                        </div>
+                        
+                        {(isAnalyzing || analysisResult) && (
+                             <Card>
+                                <CardContent className="pt-6">
+                                    {isAnalyzing && (
+                                        <div className="flex items-center gap-2 text-muted-foreground"><LoaderCircle className="h-4 w-4 animate-spin" /> <p>Analyzing document...</p></div>
+                                    )}
+                                    {analysisResult && (
+                                        <Alert>
+                                            <Sparkles className="h-4 w-4" />
+                                            <AlertTitle>Analysis Complete</AlertTitle>
+                                            <AlertDescription>{analysisResult.summary}</AlertDescription>
+                                        </Alert>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        )}
+
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                             <div className="grid gap-2"><Label htmlFor="title">Exam Title</Label><Input id="title" {...form.register("title")} placeholder="e.g., CPL Aerodynamics Midterm" />{form.formState.errors.title && <p className="text-sm text-destructive">{form.formState.errors.title.message}</p>}</div>
-                             <div className="grid gap-2"><Label htmlFor="description">Short Description</Label><Input id="description" {...form.register("description")} placeholder="A brief summary of the exam's content." />{form.formState.errors.description && <p className="text-sm text-destructive">{form.formState.errors.description.message}</p>}</div>
+                             <div className="grid gap-2"><Label htmlFor="title">Exam Title</Label><Input id="title" {...register("title")} placeholder="AI will suggest a title..." />{formState.errors.title && <p className="text-sm text-destructive">{formState.errors.title.message}</p>}</div>
+                             <div className="grid gap-2"><Label htmlFor="description">Short Description</Label><Input id="description" {...register("description")} placeholder="AI will suggest a description..." />{formState.errors.description && <p className="text-sm text-destructive">{formState.errors.description.message}</p>}</div>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="grid gap-2"><Label htmlFor="duration">Duration (minutes)</Label><Input id="duration" type="number" {...form.register("duration")} />{form.formState.errors.duration && <p className="text-sm text-destructive">{form.formState.errors.duration.message}</p>}</div>
+                            <div className="grid gap-2"><Label htmlFor="duration">Duration (minutes)</Label><Input id="duration" type="number" {...register("duration")} />{formState.errors.duration && <p className="text-sm text-destructive">{formState.errors.duration.message}</p>}</div>
                             <div className="grid gap-2"><Label htmlFor="difficulty">Difficulty</Label><Controller control={form.control} name="difficulty" render={({ field }) => (<Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger id="difficulty"><SelectValue placeholder="Select difficulty..." /></SelectTrigger><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select>)} /></div>
                         </div>
-                        <div className="grid gap-2"><Label htmlFor="sourceFile">Source Document (Optional, up to 20MB)</Label><div className="flex items-center gap-2 p-3 border-dashed border-2 rounded-lg justify-center text-muted-foreground"><FileUp className="h-6 w-6"/><Input id="sourceFile" type="file" {...form.register("sourceFile")} className="text-sm border-none shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"/></div><p className="text-xs text-muted-foreground">Upload a PDF/text file. AI will parse questions (including diagrams) or generate new ones from it.</p></div>
-                        <div className="grid gap-2"><Label htmlFor="prompt">AI Prompt</Label><Textarea id="prompt" {...form.register("prompt")} placeholder="Example: Generate a 15-question quiz from the uploaded handout on 'High-Speed Flight'. Focus on the concepts of Mach number and shockwaves." className="min-h-32"/>{form.formState.errors.prompt && <p className="text-sm text-destructive">{form.formState.errors.prompt.message}</p>}</div>
+                        <div className="grid gap-2"><Label htmlFor="prompt">AI Prompt</Label><Textarea id="prompt" {...register("prompt")} placeholder="Example: Generate a 15-question quiz from the uploaded handout on 'High-Speed Flight'. Focus on the concepts of Mach number and shockwaves." className="min-h-32"/>{formState.errors.prompt && <p className="text-sm text-destructive">{formState.errors.prompt.message}</p>}</div>
                     </div>
-                    <DialogFooter><DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose><Button type="submit" disabled={isSubmitting}>{isSubmitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />} {isSubmitting ? "Generating Content..." : "Generate with AI"}</Button></DialogFooter>
+                    <DialogFooter><DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose><Button type="submit" disabled={isSubmitting || isAnalyzing || !analysisResult}>{isSubmitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />} {isSubmitting ? "Generating Content..." : "Generate with AI"}</Button></DialogFooter>
                 </form>
             </DialogContent>
         </Dialog>
