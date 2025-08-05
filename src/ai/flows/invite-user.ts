@@ -71,6 +71,8 @@ const inviteUserFlow = ai.defineFlow(
         let errorMessage = "An unknown error occurred.";
         if (error.code === 'auth/email-already-exists') {
             errorMessage = "This email address is already in use by another account.";
+        } else if (error.code === 'auth/insufficient-permission') {
+            errorMessage = "Insufficient permission to access the requested resource. Please check your service account roles in IAM.";
         } else if (error.message) {
             errorMessage = error.message;
         }
