@@ -140,7 +140,7 @@ const CreateExamFromSourceDialog = ({ onExamCreated }: { onExamCreated: () => vo
                 throw new Error(result.message);
             }
         } catch (error: any) {
-            toast({ variant: "destructive", title: "Failed to create exam", description: error.message || "An unexpected error occurred." });
+            toast({ variant: "destructive", title: "Failed to create exam", description: error.message });
         } finally {
             setIsSubmitting(false);
         }

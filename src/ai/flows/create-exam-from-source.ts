@@ -89,8 +89,11 @@ const createExamFromSourceFlow = ai.defineFlow(
     try {
         // 1. Use AI to generate/parse questions from the source material
         console.log("Generating questions with AI...");
-        const { output } = await examGeneratorPrompt(input);
+        const { output, usage } = await examGeneratorPrompt(input);
         
+        console.log("AI Raw Output:", JSON.stringify(output, null, 2));
+        console.log("AI Usage:", usage);
+
         if (!output || !output.generatedQuestions || output.generatedQuestions.length === 0) {
             throw new Error("The AI agent could not generate any questions from the provided source and prompt. Please try again with a more detailed prompt or a different source file.");
         }
