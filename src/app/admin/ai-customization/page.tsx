@@ -15,11 +15,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { customizeAITutor, CustomizeAITutorInput } from "@/ai/flows/customize-ai-tutor";
-import { LoaderCircle } from "lucide-react";
+import { LoaderCircle, FileUp } from "lucide-react";
 
 const departments = ['Flying School', 'Aircraft Maintenance Engineering', 'Air Traffic Control', 'Cabin Crew', 'Prospective Students'] as const;
 
@@ -29,11 +30,20 @@ const formSchema = z.object({
     }),
     customPrompt: z.string().min(50, "The custom prompt must be at least 50 characters long.").optional().or(z.literal('')),
     knowledgeBaseUpdate: z.string().min(20, "The knowledge base update must be at least 20 characters long.").optional().or(z.literal('')),
-}).refine(data => data.customPrompt || data.knowledgeBaseUpdate, {
-    message: "You must provide either a custom prompt or a knowledge base update.",
+    pdfHandout: z.instanceof(FileList).optional(),
+}).refine(data => data.customPrompt || data.knowledgeBaseUpdate || (data.pdfHandout && data.pdfHandout.length > 0), {
+    message: "You must provide a custom prompt, a knowledge base update, or upload a PDF.",
     path: ["customPrompt"], // you can pick any field to display this error
 });
 
+const fileToDataUri = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+};
 
 export default function AiCustomizationPage() {
     const { toast } = useToast();
@@ -44,17 +54,34 @@ export default function AiCustomizationPage() {
         defaultValues: {
             department: undefined,
             customPrompt: "",
-            knowledgeBaseUpdate: ""
+            knowledgeBaseUpdate: "",
+            pdfHandout: undefined,
         }
     });
 
     const onSubmit = async (values: z.infer<typeof formSchema>) => {
         setIsSubmitting(true);
         try {
+            let pdfDataUri: string | undefined = undefined;
+            if (values.pdfHandout && values.pdfHandout.length > 0) {
+                const file = values.pdfHandout[0];
+                if(file.type !== 'application/pdf') {
+                    toast({
+                        variant: "destructive",
+                        title: "Invalid File Type",
+                        description: "Please upload a valid PDF file.",
+                    });
+                     setIsSubmitting(false);
+                    return;
+                }
+                pdfDataUri = await fileToDataUri(file);
+            }
+
             const input: CustomizeAITutorInput = {
                 department: values.department,
                 customPrompt: values.customPrompt || "",
                 knowledgeBaseUpdate: values.knowledgeBaseUpdate || "",
+                pdfDataUri,
             };
 
             const result = await customizeAITutor(input);
@@ -92,7 +119,7 @@ export default function AiCustomizationPage() {
                     <CardHeader>
                         <CardTitle>Customization Settings</CardTitle>
                         <CardDescription>
-                            Select a department and provide the instructions or knowledge updates.
+                            Select a department and provide the instructions, knowledge updates, or PDF handouts.
                             The changes will apply to the AI tutor for that specific department.
                         </CardDescription>
                     </CardHeader>
@@ -134,6 +161,17 @@ export default function AiCustomizationPage() {
                                 {...form.register("knowledgeBaseUpdate")}
                             />
                              {form.formState.errors.knowledgeBaseUpdate && <p className="text-sm text-destructive">{form.formState.errors.knowledgeBaseUpdate.message}</p>}
+                        </div>
+                         <div className="grid gap-2">
+                            <Label htmlFor="pdf-handout">Upload PDF Handout (Optional)</Label>
+                            <Input 
+                                id="pdf-handout"
+                                type="file"
+                                accept="application/pdf"
+                                {...form.register("pdfHandout")}
+                            />
+                            <p className="text-xs text-muted-foreground">Upload a PDF document to be added to the knowledge base.</p>
+                             {form.formState.errors.pdfHandout && <p className="text-sm text-destructive">{form.formState.errors.pdfHandout.message}</p>}
                         </div>
                     </CardContent>
                     <CardFooter className="border-t px-6 py-4">

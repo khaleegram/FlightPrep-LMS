@@ -15,6 +15,7 @@ const CustomizeAITutorInputSchema = z.object({
   department: z.enum(['Flying School', 'Aircraft Maintenance Engineering', 'Air Traffic Control', 'Cabin Crew', 'Prospective Students']).describe('The department to customize the AI tutor for.'),
   customPrompt: z.string().optional().describe('The custom prompt to use for the AI tutor.'),
   knowledgeBaseUpdate: z.string().optional().describe('Updates to the AI tutor knowledge base.'),
+  pdfDataUri: z.string().optional().describe('A PDF handout encoded as a data URI.'),
 });
 export type CustomizeAITutorInput = z.infer<typeof CustomizeAITutorInputSchema>;
 
@@ -47,9 +48,13 @@ const customizeAITutorFlow = ai.defineFlow(
   async (input) => {
     // In a real application, you would save this customization to a database (e.g., Firestore).
     // The key would likely be the department name.
+    // The PDF would be stored in Cloud Storage, and its URL saved in the database.
     console.log(`Customizing AI Tutor for ${input.department}`);
     console.log(`Custom Prompt: ${input.customPrompt}`);
     console.log(`Knowledge Base Update: ${input.knowledgeBaseUpdate}`);
+    if (input.pdfDataUri) {
+        console.log(`Received PDF handout: ${input.pdfDataUri.substring(0, 50)}...`);
+    }
     
     // For now, we just simulate success.
     return {
