@@ -32,7 +32,7 @@ const CreateExamFromSourceInputSchema = z.object({
   title: z.string().describe('The title of the exam.'),
   description: z.string().describe('A brief description of the exam.'),
   duration: z.number().int().positive().describe('The duration of the exam in minutes.'),
-  prompt: z.string().describe('A natural language prompt describing the desired exam content and instructions for the AI.'),
+  questionCount: z.number().int().positive().describe('The number of questions to generate for the exam.'),
   difficulty: z.enum(['Easy', 'Medium', 'Hard']).describe('The desired difficulty level for the questions.'),
   sourceDataUri: z.string().optional().describe("A document (e.g., PDF) encoded as a data URI containing source material for question generation. The AI will not store this document; it will only use it to extract information and create the exam."),
 });
@@ -53,24 +53,18 @@ const examGeneratorPrompt = ai.definePrompt({
     prompt: `You are an AI Exam Creation Agent for an advanced aviation training platform. Your task is to generate a set of high-quality multiple-choice questions based on the provided instructions and source material.
 
 Key Instructions:
-1.  **Analyze the Source**: You will be given source material as a data URI. This material can include text, diagrams, charts, and other images. Analyze ALL content to create relevant questions.
-2.  **Determine Department & Subject**: Based on the content of the source material, you MUST determine and assign the most appropriate 'department' (e.g., "Flying School", "Aircraft Maintenance Engineering") and 'subject' (e.g., "Aerodynamics", "Air Law") for EACH question.
-3.  **Follow the Prompt**: Adhere strictly to the user's prompt regarding the number of questions, topics, and focus.
+1.  **Analyze the Source**: You will be given source material. Analyze ALL content to create relevant questions.
+2.  **Generate Specific Number of Questions**: Generate exactly {{{questionCount}}} questions.
+3.  **Determine Department & Subject**: Based on the content of the source material, you MUST determine and assign the most appropriate 'department' (e.g., "Flying School") and 'subject' (e.g., "Aerodynamics") for EACH question.
 4.  **Set Difficulty**: Generate questions that match the specified difficulty level: {{{difficulty}}}.
 5.  **Format Correctly**: Each question must have exactly four options and one clearly identified correct answer.
-6.  **Parse or Generate**:
-    - If the source material appears to be a list of existing questions, your primary task is to parse and format them correctly, assigning department and subject.
-    - If the source material is a study guide or handout, your task is to generate new, original questions based on ALL the information within that handout, including text and diagrams.
-7.  **Return JSON**: Your final output must be a valid JSON object matching the required schema, containing an array of generated questions.
-
-Admin's Prompt: {{{prompt}}}
-Difficulty Level: {{{difficulty}}}
+6.  **Return JSON**: Your final output must be a valid JSON object matching the required schema, containing an array of generated questions.
 
 Source Material:
 {{#if sourceDataUri}}
 {{media url=sourceDataUri}}
 {{else}}
-No source material provided. Generate questions based on general aviation knowledge related to the prompt.
+No source material provided. Generate questions based on general aviation knowledge.
 {{/if}}
 `,
 });
@@ -141,3 +135,5 @@ const createExamFromSourceFlow = ai.defineFlow(
     }
   }
 );
+
+    

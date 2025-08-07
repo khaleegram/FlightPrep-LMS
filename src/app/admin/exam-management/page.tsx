@@ -78,7 +78,7 @@ const createFromSourceFormSchema = z.object({
     title: z.string().min(5, "Title must be at least 5 characters long."),
     description: z.string().min(10, "Description must be at least 10 characters long."),
     duration: z.coerce.number().int().positive("Duration must be a positive number."),
-    prompt: z.string().min(20, "Prompt must be detailed enough for the AI to understand."),
+    questionCount: z.coerce.number().int().min(1, "You must generate at least 1 question."),
     difficulty: z.enum(['Easy', 'Medium', 'Hard']),
     sourceFile: z.instanceof(FileList).refine(files => files?.length > 0, "A source file is required."),
 });
@@ -118,7 +118,7 @@ const CreateExamFromSourceDialog = ({ onExamCreated }: { onExamCreated: () => vo
 
     const form = useForm<z.infer<typeof createFromSourceFormSchema>>({
         resolver: zodResolver(createFromSourceFormSchema),
-        defaultValues: { title: "", description: "", duration: 60, prompt: "", difficulty: "Medium" },
+        defaultValues: { title: "", description: "", duration: 60, questionCount: 10, difficulty: "Medium" },
     });
 
     const { register, handleSubmit, setValue, formState, watch, reset } = form;
@@ -218,11 +218,11 @@ const CreateExamFromSourceDialog = ({ onExamCreated }: { onExamCreated: () => vo
                              <div className="grid gap-2"><Label htmlFor="title">Exam Title</Label><Input id="title" {...register("title")} placeholder="AI will suggest a title..." />{formState.errors.title && <p className="text-sm text-destructive">{formState.errors.title.message}</p>}</div>
                              <div className="grid gap-2"><Label htmlFor="description">Short Description</Label><Input id="description" {...register("description")} placeholder="AI will suggest a description..." />{formState.errors.description && <p className="text-sm text-destructive">{formState.errors.description.message}</p>}</div>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div className="grid gap-2"><Label htmlFor="duration">Duration (minutes)</Label><Input id="duration" type="number" {...register("duration")} />{formState.errors.duration && <p className="text-sm text-destructive">{formState.errors.duration.message}</p>}</div>
+                             <div className="grid gap-2"><Label htmlFor="questionCount">Number of Questions</Label><Input id="questionCount" type="number" {...register("questionCount")} />{formState.errors.questionCount && <p className="text-sm text-destructive">{formState.errors.questionCount.message}</p>}</div>
                             <div className="grid gap-2"><Label htmlFor="difficulty">Difficulty</Label><Controller control={form.control} name="difficulty" render={({ field }) => (<Select onValueChange={field.onChange} defaultValue={field.value}><SelectTrigger id="difficulty"><SelectValue placeholder="Select difficulty..." /></SelectTrigger><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select>)} /></div>
                         </div>
-                        <div className="grid gap-2"><Label htmlFor="prompt">AI Prompt</Label><Textarea id="prompt" {...register("prompt")} placeholder="Example: Generate a 15-question quiz from the uploaded handout on 'High-Speed Flight'. Focus on the concepts of Mach number and shockwaves." className="min-h-32"/>{formState.errors.prompt && <p className="text-sm text-destructive">{formState.errors.prompt.message}</p>}</div>
                     </div>
                     <DialogFooter><DialogClose asChild><Button type="button" variant="secondary">Cancel</Button></DialogClose><Button type="submit" disabled={isSubmitting || isAnalyzing || !analysisResult}>{isSubmitting && <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />} {isSubmitting ? "Generating Content..." : "Generate with AI"}</Button></DialogFooter>
                 </form>
@@ -568,3 +568,5 @@ export default function ExamManagementPage() {
         </div>
     )
 }
+
+    
