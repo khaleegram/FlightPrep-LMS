@@ -83,6 +83,22 @@ const createFromSourceFormSchema = z.object({
     sourceFile: z.instanceof(FileList).refine(files => files?.length > 0, "A source file is required."),
 });
 
+const createFromBankAIFormSchema = z.object({
+  title: z.string().min(5, "Title must be at least 5 characters long."),
+  description: z.string().min(10, "Description must be at least 10 characters long."),
+  duration: z.coerce.number().int().positive("Duration must be a positive number."),
+  prompt: z.string().min(20, "Prompt must be detailed enough for the AI to understand."),
+  questionCount: z.coerce.number().int().min(1, "You must select at least 1 question."),
+});
+
+const createManuallyFormSchema = z.object({
+  title: z.string().min(5, "Title must be at least 5 characters long."),
+  description: z.string().min(10, "Description must be at least 10 characters long."),
+  duration: z.coerce.number().int().positive("Duration must be a positive number."),
+  questionIds: z.array(z.string()).min(1, "You must select at least one question."),
+});
+
+
 const fileToDataUri = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
