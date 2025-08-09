@@ -6,13 +6,13 @@ import { getFirestore } from "firebase/firestore";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+  apiKey: "AIzaSyCRcJzLuqtW7aT_ddYv43w4mrhw_zstZdw",
+  authDomain: "flightprep-lms.firebaseapp.com",
+  projectId: "flightprep-lms",
+  storageBucket: "flightprep-lms.appspot.com",
+  messagingSenderId: "1087145337434",
+  appId: "1:1087145337434:web:201f309142b315f2416e63",
+  measurementId: "G-NS1CJ8W235"
 };
 
 // Initialize Firebase
